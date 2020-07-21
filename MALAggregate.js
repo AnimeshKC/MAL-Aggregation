@@ -3,6 +3,7 @@ const fs = require("fs")
 const includedUsers = []
 const inacessableUsers = []
 let scoreObject = {}
+const minimumUsers = 5
 const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 }
 const userStatusMap = {
   CONSUMING: 1,
@@ -15,7 +16,31 @@ const MINIMUM_COMPLETED_RATIO = 0.33
 /*
 {item1: {currentMean: 0, totalUsers: 0, users: {}}}
 */
-const userList = ["mightymole", "Isy_Quizgag", "Lukalade", "Mio", "Exphantom"]
+const userList = [
+  "mightymole",
+  "Isy_Quizgag",
+  "Lukalade",
+  "Mio",
+  "Exphantom",
+  "Yung_Icetea",
+  "ccorn",
+  "AltonWi34129768",
+  "SolidSnake777000",
+  "mcm",
+  "krystallus",
+  "Robinne",
+  "Stiff99",
+  "Bunnie",
+  "RetroHead_",
+  "changelog",
+  "yanntjezz",
+  "MenDouKote",
+  "Carlosec",
+  "Deoxysos",
+  "indigohead",
+  "leosmileyface",
+  "aaron216",
+]
 
 function validateInstance(instance) {
   const {
@@ -88,12 +113,16 @@ async function result(batchName) {
     await addUserScores(user)
   }
   console.log(
-    `Successful Users: ${includedUsers}; UnSuccessful Users: ${inacessableUsers}`
+    `Successful Users: ${includedUsers} \n UnSuccessful Users: ${inacessableUsers}`
+  )
+  const unfilteredArr = Object.keys(scoreObject).map((key) => {
+    return { titleName: key, data: scoreObject[key] }
+  })
+  const filteredArr = unfilteredArr.filter(
+    (scoredInstance) => scoredInstance.data.totalUsers >= minimumUsers
   )
   jsonOutput = {
-    successfulUsers: includedUsers,
-    unsuccessfulUsers: inacessableUsers,
-    scores: scoreObject,
+    scores: filteredArr,
   }
   const JSONData = JSON.stringify(jsonOutput)
   console.log("starting to write to file")
