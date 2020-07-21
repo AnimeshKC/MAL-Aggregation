@@ -29,14 +29,12 @@ function validateInstance(instance) {
   const isOngoing = animeAiringStatus === seriesStatusMap.ONGOING
 
   const validFinishedScore =
-    instance.score &&
-    animeIsComplete &&
-    Math.floor(
-      (instance.numWatchedEpisodes / instance.animeNumEpisodes) * 100
-    ) >=
+    score &&
+    isFinished &&
+    Math.floor((numWatchedEpisodes / animeNumEpisodes) * 100) >=
       MINIMUM_COMPLETED_RATIO * 100
   const validOngoingScore =
-    instance.score && animeIsAiring && status !== userStatusMap.PLAN_TO_CONSUME
+    score && isOngoing && status !== userStatusMap.PLAN_TO_CONSUME
   return validFinishedScore || validOngoingScore
 }
 async function addUserScores(username, after = 0) {
@@ -55,15 +53,20 @@ async function addUserScores(username, after = 0) {
               totalUsers: 0,
               users: {},
             }
-          scoreObject.currentMean = (
-            (scoreObject.currentMean * scoreObject.totalUsers + score) /
-            (scoreObject.totalUsers + 1)
+          scoreObject[animeTitle].currentMean = (
+            (scoreObject[animeTitle].currentMean *
+              scoreObject[animeTitle].totalUsers +
+              score) /
+            (scoreObject[animeTitle].totalUsers + 1)
           ).toFixed(2)
-          scoreObject.totalUsers++
-          score.users[username] = score
+          scoreObject[animeTitle].totalUsers++
+          scoreObject[animeTitle].users = {
+            ...scoreObject[animeTitle].users,
+            [username]: score,
+          }
         }
       }
-      if (after === 0) includedUsers.append(username) //append users whose data could be obtained only the first time their list is iterated through
+      if (after === 0) includedUsers.push(username) //append users whose data could be obtained only the first time their list is iterated through
       return addUserScores(username, after + 300)
     }
     console.count("Waiting")
@@ -75,7 +78,7 @@ async function addUserScores(username, after = 0) {
       e.message === "Request failed with status code 400" ||
       e.message === "Request failed with status code 404"
     ) {
-      inacessableUsers.append(username)
+      inacessableUsers.push(username)
     } else throw e
   }
 }
@@ -84,7 +87,15 @@ async function result(batchName) {
   for (const user of userList) {
     await addUserScores(user)
   }
-  const JSONData = JSON.stringify(scoredDict)
+  console.log(
+    `Successful Users: ${includedUsers}; UnSuccessful Users: ${inacessableUsers}`
+  )
+  jsonOutput = {
+    successfulUsers: includedUsers,
+    unsuccessfulUsers: inacessableUsers,
+    scores: scoreObject,
+  }
+  const JSONData = JSON.stringify(jsonOutput)
   console.log("starting to write to file")
   fs.writeFileSync(`${batchName}.json`, JSONData)
   console.log("done writing to file")
