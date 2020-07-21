@@ -4,6 +4,8 @@ const includedUsers = []
 const inacessableUsers = []
 let scoreObject = {}
 const minimumUsers = 5
+const psuedoCountValue = 5.5
+const psuedoCountFrequency = 1
 const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 }
 const userStatusMap = {
   CONSUMING: 1,
@@ -16,7 +18,7 @@ const MINIMUM_COMPLETED_RATIO = 0.33
 /*
 {item1: {currentMean: 0, totalUsers: 0, users: {}}}
 */
-const userList = [
+const textList = [
   "mightymole",
   "Isy_Quizgag",
   "Lukalade",
@@ -40,7 +42,46 @@ const userList = [
   "indigohead",
   "leosmileyface",
   "aaron216",
+  "DooMWhite",
+  "KingBlex",
+  "JalenHarris",
+  "YourObsession",
+  "kursed",
+  "skinlog",
+  "Shamo-",
+  "NotFred",
+  "Mienus",
+  "huss",
+  "Velcifer",
+  "Ilie_Rares",
+  "Prottoy",
+  "Phiro_",
+  "Bossun_86",
+  "Tr1pkt12",
+  "Matthew_S",
+  "tuduo",
+  "CynicalMatt",
+  "Ektopos_Mayhem",
+  "BlackDisaster",
+  "CalmYaMind",
+  "LucasRios2002Ani",
+  "Protokahn",
+  "Lnazuma",
+  "Assepsia",
+  "Ramaladni",
+  "OmegaWaffles",
+  "RetroRaven",
+  "TheAquaSpaceCow",
+  "Kingzor124",
+  "LucasRiots",
+  "AestheticOnion",
+  "moeslasher",
+  "Naito_",
+  "Saeedpoppa",
+  "veuera",
+  "AstralSky",
 ]
+const userList = [...new Set(textList)]
 
 function validateInstance(instance) {
   const {
@@ -121,12 +162,41 @@ async function result(batchName) {
   const filteredArr = unfilteredArr.filter(
     (scoredInstance) => scoredInstance.data.totalUsers >= minimumUsers
   )
-  jsonOutput = {
-    scores: filteredArr,
-  }
-  const JSONData = JSON.stringify(jsonOutput)
+  const psuedoCountedArr = filteredArr.map((scoredInstance) => {
+    const newScoredInstance = { ...scoredInstance }
+    const { currentMean, totalUsers } = newScoredInstance.data
+    newScoredInstance.data.pcMean = (
+      (currentMean * totalUsers + psuedoCountValue * psuedoCountFrequency) /
+      (totalUsers + psuedoCountFrequency)
+    ).toFixed(2)
+    return newScoredInstance
+  })
+  const sortedArr = psuedoCountedArr.sort(
+    (a, b) => b.data.pcMean - a.data.pcMean
+  )
+  const introductionString = `
+  The following users are included: 
+  ${includedUsers}
+  The following users could not be included, either because their lists are not public or because their accounts no longer exist: 
+  ${inacessableUsers}
+  
+  This aggregation uses psuedocounts to reduce skewing of data with a smaller sample size. The psuecount value used is ${psuedoCountValue}, and the frequency is ${psuedoCountFrequency}
+  
+  For a user's score to count for a finished title, the user must have consumed at least ${
+    MINIMUM_COMPLETED_RATIO * 100
+  }% of the work.
+
+  `
   console.log("starting to write to file")
-  fs.writeFileSync(`${batchName}.json`, JSONData)
+  fs.writeFileSync(`${batchName}.txt`, introductionString, { flag: "w" })
+  for (let i = 0; i < sortedArr.length; i++) {
+    const placement = i + 1
+    const { titleName, data } = sortedArr[i]
+    const { pcMean, currentMean, totalUsers } = data
+    const placementString = `${placement}. ${titleName} - Psuedocount Mean: ${pcMean}; Number of Users: ${totalUsers}; Real Mean: ${currentMean} \n`
+    fs.writeFileSync(`${batchName}.txt`, placementString, { flag: "a" })
+  }
+
   console.log("done writing to file")
 }
 result("JusticeScores")
