@@ -108,9 +108,6 @@ async function addUserScores(username, after = 0) {
     const data = await malScraper.getWatchListFromUser(username, after, "anime")
     if (data.length) {
       for (const instance of data) {
-        //if  the anime/manga is complete, then user must have finished at least 33% of it for the score to count
-        //if it is ongoing, for simplicity sake, all scores will be counted
-
         if (validateInstance(instance)) {
           const { animeTitle, score } = instance
           if (!scoreObject[animeTitle])
@@ -149,7 +146,7 @@ async function addUserScores(username, after = 0) {
   }
 }
 
-async function result(batchName) {
+async function result(userList, batchName) {
   for (const user of userList) {
     await addUserScores(user)
   }
@@ -199,4 +196,42 @@ async function result(batchName) {
 
   console.log("done writing to file")
 }
-result("JusticeScores")
+//result(userList, "JusticeScores")
+async function singleResult(user) {
+  await addUserScores(user)
+  console.log("starting")
+  fs.writeFileSync(`${user}.json`, JSON.stringify(scoreObject))
+  console.log("Finishing")
+  console.log(scoreObject)
+  console.log(inacessableUsers)
+}
+
+function adaptAggregationFormatToUserFormat(aggregationFormUserData) {
+  const titleList = Object.keys(aggregationFormUserData)
+  console.log(titleList)
+  const userArr = []
+  let userName = null
+  for (const title of titleList) {
+    console.log(title)
+    const data = aggregationFormUserData[title]
+    console.log(data)
+    const { users } = data
+    console.log(users)
+    if (userName === null) userName = Object.keys(users)[0]
+    userArr.push({ title, score: users[userName], isCompleted: true })
+  }
+  return { [userName]: userArr }
+}
+const userObject = JSON.parse(
+  fs.readFileSync("assthete.json", {
+    encoding: "utf8",
+    flag: "r",
+  })
+)
+//console.log(userObject)
+const reshapedData = adaptAggregationFormatToUserFormat(userObject)
+//console.log(reshapedData)
+
+console.log("Starting to write data")
+fs.writeFileSync("asstheteFixed.json", JSON.stringify(reshapedData))
+console.log("finished")
