@@ -16,7 +16,7 @@ function adaptAggregationToUser(aggregationFormUserData) {
     const { users } = data
     console.log(users)
     if (userName === null) userName = Object.keys(users)[0]
-    userArr.push({ title, score: users[userName] })
+    userArr.push({ title, score: users[userName], isCompleted: true })
   }
   return { [userName]: userArr }
 }
