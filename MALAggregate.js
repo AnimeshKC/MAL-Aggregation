@@ -20,7 +20,9 @@ function getIntroductionString() {
   return `
   The following users are included: 
   ${INCLUDED_USERS}
+
   The following users could not be included, either because their lists are not public or because their accounts no longer exist: 
+  
   ${INACESSABLE_USERS}
   
   This aggregation uses psuedocounts to reduce skewing of data with a smaller sample size. The psuecount value used is ${PSUEDOCOUNT_VALUE}, and the frequency is ${PSUEDOCOUNT_FREQUENCY}
@@ -29,6 +31,7 @@ function getIntroductionString() {
     MINIMUM_COMPLETED_RATIO * 100
   }% of the work.
   
+  Scores are provided only for anime that have scores from at least ${MINIMUM_USERS} users
   `
 }
 /*
@@ -42,17 +45,17 @@ function uniqueArrayFromTxt(txtPath) {
 }
 
 async function getUserScores(
-  username,
+  user,
   cacheObj = null,
   prevObject = {},
   after = 0
 ) {
   try {
     const userObject = !Object.entries(prevObject).length
-      ? { [username]: [] }
+      ? { [user]: [] }
       : { ...prevObject }
-    const userScores = userObject[username]
-    const data = await malScraper.getWatchListFromUser(username, after, "anime")
+    const userScores = userObject[user]
+    const data = await malScraper.getWatchListFromUser(user, after, "anime")
     if (data.length) {
       for (const instance of data) {
         if (validateInstance(instance)) {
@@ -61,18 +64,19 @@ async function getUserScores(
           userScores.push({ title: animeTitle, score, completed })
         }
       }
-      return getUserScores(username, cacheObj, userObject, after + 300)
+      return getUserScores(user, cacheObj, userObject, after + 300)
     }
     console.count("Waiting")
     return userObject
   } catch (e) {
-    //400: non-public list; 404: user deleted list or changed username
+    //400: non-public list; 404: user deleted list or changed user
     if (
       e.message === "Request failed with status code 400" ||
       e.message === "Request failed with status code 404"
     ) {
-      if (cacheObj && cacheObj[username]) return cacheObj[username]
-      return undefined //for clarity
+      if (cacheObj && cacheObj[user]) {
+        return { [user]: cacheObj[user] }
+      } else INACESSABLE_USERS.push(user)
     } else throw e
   }
 }
@@ -80,9 +84,9 @@ async function getUserScores(
 /*
 Testing user function
 */
-async function printUser(username) {
-  const data = await getUserScores(username)
-  console.log("Length of data:", data[username].length)
+async function printUser(user) {
+  const data = await getUserScores(user)
+  console.log("Length of data:", data[user].length)
   fs.writeFileSync("test.json", JSON.stringify(data), { flag: "w" })
 }
 //printUser("zenmodeman")
@@ -94,6 +98,7 @@ function validateInstance(instance) {
     numWatchedEpisodes,
     animeNumEpisodes,
     status,
+    animeTitle,
   } = instance
   const isFinished = animeAiringStatus === seriesStatusMap.FINISHED
   const isOngoing = animeAiringStatus === seriesStatusMap.ONGOING
@@ -107,9 +112,9 @@ function validateInstance(instance) {
     score && isOngoing && status !== userStatusMap.PLAN_TO_CONSUME
   return validFinishedScore || validOngoingScore
 }
-async function addUserScores(username, after = 0) {
+async function addUserScores(user, after = 0) {
   try {
-    const data = await malScraper.getWatchListFromUser(username, after, "anime")
+    const data = await malScraper.getWatchListFromUser(user, after, "anime")
     if (data.length) {
       for (const instance of data) {
         if (validateInstance(instance)) {
@@ -129,12 +134,12 @@ async function addUserScores(username, after = 0) {
           scoreObject[animeTitle].totalUsers++
           scoreObject[animeTitle].users = {
             ...scoreObject[animeTitle].users,
-            [username]: score,
+            [user]: score,
           }
         }
       }
-      if (after === 0) INCLUDED_USERS.push(username) //append users whose data could be obtained only the first time their list is iterated through
-      return addUserScores(username, after + 300)
+      if (after === 0) INCLUDED_USERS.push(user) //append users whose data could be obtained only the first time their list is iterated through
+      return addUserScores(user, after + 300)
     }
     console.count("Waiting")
     return scoreObject
@@ -145,29 +150,30 @@ async function addUserScores(username, after = 0) {
       e.message === "Request failed with status code 400" ||
       e.message === "Request failed with status code 404"
     ) {
-      INACESSABLE_USERS.push(username)
+      INACESSABLE_USERS.push(user)
     } else throw e
   }
 }
 
 function aggregateUser(userObject, aggregationObject) {
+  const user = Object.keys(userObject)[0]
   const userScores = userObject[user]
   for (const instance of userScores) {
     const { title, score, completed } = instance
     if (!aggregationObject[title])
       aggregationObject[title] = {
-        title,
         data: { currentMean: 0, totalUsers: 0, users: {}, totalCompleted: 0 },
       }
     const { data } = aggregationObject[title]
-    const { currentMean, totalUsers, users, totalCompleted } = data
-    currentMean = (
-      (currentMean * totalUsers + score) /
-      (totalUsers + 1)
+    data.currentMean = (
+      (data.currentMean * data.totalUsers + score) /
+      (data.totalUsers + 1)
     ).toFixed(2)
-    totalUsers += 1
-    totalCompleted = completed ? totalCompleted + 1 : totalCompleted
-    users[user] = score
+    data.totalUsers += 1
+    data.totalCompleted = completed
+      ? data.totalCompleted + 1
+      : data.totalCompleted
+    data.users[user] = score
   }
 }
 
@@ -183,51 +189,51 @@ async function aggregateData(
 ) {
   const aggregationObject = {}
   for (const user of userList) {
-    const userObject = await getUserScores(username, cacheObj)
+    const userObject = await getUserScores(user, cacheObj)
     if (!userObject) continue
     aggregateUser(userObject, aggregationObject)
     INCLUDED_USERS.push(user)
-    if (cacheObj) cacheObj[user] = userObject[user] //update the cache object
+    if (cacheObj) cacheObj[user] = userObject[user]
   }
-  if (cacheObj && cacheFileName) cacheData(cacheObject, cacheFileName)
-  const outputData = getOutputData(aggregationData)
+  if (cacheObj && cacheFileName) cacheData(cacheObj, cacheFileName)
+  const outputData = getOutputData(aggregationObject)
   storeAggregation(outputData, storageFileName)
 }
 
 const userList = uniqueArrayFromTxt("JusticeUserList.txt")
 const cacheObj = getCacheObjFromFile("JusticeCache.json")
-aggregateData(userList, "JusticeScores.txt", cacheObj, "JusticeCache.json")
-
+//console.log(cacheObj)
+aggregateData(userList, "TestJusticeScores.txt", cacheObj, "JusticeCache.json")
 function storeAggregation(outputData, storageFileName) {
   const { sortedData, top100Completed } = outputData
   const introductionString = getIntroductionString()
 
   console.log("starting to write to file")
-  fs.writeFileSync(`${storageFileName}.txt`, introductionString, { flag: "w" })
+  fs.writeFileSync(storageFileName, introductionString, { flag: "w" })
 
-  fs.writeFileSync(`${storageFileName}.txt`, "\n Rankings: ", { flag: "a" })
+  fs.writeFileSync(storageFileName, "\n Rankings: \n", { flag: "a" })
 
   for (let i = 0; i < sortedData.length; i++) {
     const placement = i + 1
     const { title, data } = sortedData[i]
     const { pcMean, currentMean, totalUsers, totalCompleted } = data
     const placementString = `${placement}. ${title} - Psuedocount Mean: ${pcMean}; Number of Users: ${totalUsers}; Real Mean: ${currentMean}; Total Completed: ${totalCompleted} \n`
-    fs.writeFileSync(`${storageFileName}.txt`, placementString, { flag: "a" })
+    fs.writeFileSync(storageFileName, placementString, { flag: "a" })
   }
+  fs.writeFileSync(storageFileName, "\n Most Watched: \n", { flag: "a" })
   for (let i = 0; i < top100Completed.length; i++) {
     const placement = i + 1
     const { title, totalCompleted } = top100Completed[i]
     const placementString = `${placement}. ${title} - Total Completed: ${totalCompleted} \n`
-    fs.writeFileSync(`${storageFileName}.txt`, placementString, { flag: "a" })
+    fs.writeFileSync(storageFileName, placementString, { flag: "a" })
   }
   console.log("done writing to file")
 }
 
 function getOutputData(aggregationData) {
   //returns the proper sorted data format and the proper completion data format
-  const returnData = {}
   const unfilteredArr = Object.keys(aggregationData).map((key) => {
-    return { title: key, data: aggregationData[key] }
+    return { title: key, data: aggregationData[key].data }
   })
 
   const filteredArr = unfilteredArr.filter(
@@ -245,9 +251,9 @@ function getOutputData(aggregationData) {
   })
   const sortedData = psuedoCountedArr.sort(
     (a, b) =>
-      b.pcMean - a.pcMean ||
-      b.totalUsers - a.totalUsers ||
-      b.totalCompleted - a.totalCompleted
+      b.data.pcMean - a.data.pcMean ||
+      b.data.totalUsers - a.data.totalUsers ||
+      b.data.totalCompleted - a.data.totalCompleted
   )
   const completedArr = filteredArr.map((scoredInstance) => {
     const { title, data } = scoredInstance
@@ -257,7 +263,7 @@ function getOutputData(aggregationData) {
   const sortedCompletedArr = completedArr.sort(
     (a, b) => b.totalCompleted - a.totalCompleted
   )
-  const top100Completed = sortedCompletedArr.slice(0, 99)
+  const top100Completed = sortedCompletedArr.slice(0, 100)
 
   return { sortedData, top100Completed }
 }
