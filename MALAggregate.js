@@ -40,8 +40,8 @@ function getIntroductionString() {
 
 //const userList = [...new Set(textList)]
 
-function uniqueArrayFromTxt(txtPath) {
-  return [...new Set(fs.readFileSync(txtPath).toString().split("\n"))]
+function uniqueArrayFromTxt(txtPath, splitString = "\n") {
+  return [...new Set(fs.readFileSync(txtPath).toString().split(splitString))]
 }
 
 async function getUserScores(
@@ -98,7 +98,6 @@ function validateInstance(instance) {
     numWatchedEpisodes,
     animeNumEpisodes,
     status,
-    animeTitle,
   } = instance
   const isFinished = animeAiringStatus === seriesStatusMap.FINISHED
   const isOngoing = animeAiringStatus === seriesStatusMap.ONGOING
@@ -111,48 +110,6 @@ function validateInstance(instance) {
   const validOngoingScore =
     score && isOngoing && status !== userStatusMap.PLAN_TO_CONSUME
   return validFinishedScore || validOngoingScore
-}
-async function addUserScores(user, after = 0) {
-  try {
-    const data = await malScraper.getWatchListFromUser(user, after, "anime")
-    if (data.length) {
-      for (const instance of data) {
-        if (validateInstance(instance)) {
-          const { animeTitle, score } = instance
-          if (!scoreObject[animeTitle])
-            scoreObject[animeTitle] = {
-              currentMean: 0,
-              totalUsers: 0,
-              users: {},
-            }
-          scoreObject[animeTitle].currentMean = (
-            (scoreObject[animeTitle].currentMean *
-              scoreObject[animeTitle].totalUsers +
-              score) /
-            (scoreObject[animeTitle].totalUsers + 1)
-          ).toFixed(2)
-          scoreObject[animeTitle].totalUsers++
-          scoreObject[animeTitle].users = {
-            ...scoreObject[animeTitle].users,
-            [user]: score,
-          }
-        }
-      }
-      if (after === 0) INCLUDED_USERS.push(user) //append users whose data could be obtained only the first time their list is iterated through
-      return addUserScores(user, after + 300)
-    }
-    console.count("Waiting")
-    return scoreObject
-  } catch (e) {
-    //400 error is for private lists, and 404 is for users that cannot be found
-
-    if (
-      e.message === "Request failed with status code 400" ||
-      e.message === "Request failed with status code 404"
-    ) {
-      INACESSABLE_USERS.push(user)
-    } else throw e
-  }
 }
 
 function aggregateUser(userObject, aggregationObject) {
@@ -200,10 +157,6 @@ async function aggregateData(
   storeAggregation(outputData, storageFileName)
 }
 
-const userList = uniqueArrayFromTxt("JusticeUserList.txt")
-const cacheObj = getCacheObjFromFile("JusticeCache.json")
-//console.log(cacheObj)
-aggregateData(userList, "TestJusticeScores.txt", cacheObj, "JusticeCache.json")
 function storeAggregation(outputData, storageFileName) {
   const { sortedData, top100Completed } = outputData
   const introductionString = getIntroductionString()
@@ -267,69 +220,18 @@ function getOutputData(aggregationData) {
 
   return { sortedData, top100Completed }
 }
-async function result(userList, batchName) {
-  for (const user of userList) {
-    await addUserScores(user)
-  }
-  console.log(
-    `Successful Users: ${INCLUDED_USERS} \n UnSuccessful Users: ${INACESSABLE_USERS}`
-  )
-  const unfilteredArr = Object.keys(scoreObject).map((key) => {
-    return { title: key, data: scoreObject[key] }
-  })
-  const filteredArr = unfilteredArr.filter(
-    (scoredInstance) => scoredInstance.data.totalUsers >= MINIMUM_USERS
-  )
-  const psuedoCountedArr = filteredArr.map((scoredInstance) => {
-    const newScoredInstance = { ...scoredInstance }
-    const { currentMean, totalUsers } = newScoredInstance.data
-    newScoredInstance.data.pcMean = (
-      (currentMean * totalUsers + PSUEDOCOUNT_VALUE * PSUEDOCOUNT_FREQUENCY) /
-      (totalUsers + PSUEDOCOUNT_FREQUENCY)
-    ).toFixed(2)
-    return newScoredInstance
-  })
-  const sortedArr = psuedoCountedArr.sort(
-    (a, b) => b.data.pcMean - a.data.pcMean || b.totalUsers - a.totalUsers
-  )
-  const INTRODUCTION_STRING = `
-  The following users are included: 
-  ${INCLUDED_USERS}
-  The following users could not be included, either because their lists are not public or because their accounts no longer exist: 
-  ${INACESSABLE_USERS}
-  
-  This aggregation uses psuedocounts to reduce skewing of data with a smaller sample size. The psuecount value used is ${PSUEDOCOUNT_VALUE}, and the frequency is ${PSUEDOCOUNT_FREQUENCY}
-  
-  For a user's score to count for a finished title, the user must have consumed at least ${
-    MINIMUM_COMPLETED_RATIO * 100
-  }% of the work.
 
-  `
-  console.log("starting to write to file")
-  fs.writeFileSync(`${batchName}.txt`, INTRODUCTION_STRING, { flag: "w" })
-  for (let i = 0; i < sortedArr.length; i++) {
-    const placement = i + 1
-    const { title, data } = sortedArr[i]
-    const { pcMean, currentMean, totalUsers } = data
-    const placementString = `${placement}. ${title} - Psuedocount Mean: ${pcMean}; Number of Users: ${totalUsers}; Real Mean: ${currentMean} \n`
-    fs.writeFileSync(`${batchName}.txt`, placementString, { flag: "a" })
-  }
+/*
+const userList = uniqueArrayFromTxt("JusticeUserList.txt")
+const cacheObj = getCacheObjFromFile("JusticeCache.json")
+aggregateData(userList, "TestJusticeScores.txt", cacheObj, "JusticeCache.json")
 
-  console.log("done writing to file")
-}
+*/
 
-//console.log(userObject)
-//const reshapedData = adaptAggregationFormatToUserFormat(userObject)
-//console.log(reshapedData)
+const userList = uniqueArrayFromTxt("mcmServerUsers.txt", "\r\n")
+const cacheObj = getCacheObjFromFile("mcmServerCache.json")
+aggregateData(userList, "mcmServerScores.txt", cacheObj, "mcmServerCache.json")
 
 function getCacheObjFromFile(fileName) {
   return JSON.parse(fs.readFileSync(fileName))
 }
-/*
-const catchyData = JSON.parse(fs.readFileSync("asstheteFixed.json"))
-const justiceCache = JSON.parse(fs.readFileSync("JusticeCache.json"))
-justiceCache["assthete"] = catchyData["assthete"]
-fs.writeFileSync("JusticeCache.json", JSON.stringify(justiceCache), {
-  flag: "w",
-})
-*/

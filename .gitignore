@@ -1,6 +1,10 @@
 #specific files
 JusticeScores.json
 JusticeScores.txt
+assthete.json
+asstheteFixed.json
+JusticeUserList.txt
+JusticeCache.json
 #---------------------------------------#
 # Project Ignores                       #
 #---------------------------------------#
@@ -106,3 +110,9 @@ Desktop.ini
 
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
+TestJusticeScores.txt
+test.json
+.vscode/launch.json
+mcmServerUsers.txt
+mcmServerScores.txt
+mcmServerCache.json
