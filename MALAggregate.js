@@ -18,6 +18,8 @@ const userStatusMap = {
 const MINIMUM_COMPLETED_RATIO = 0.33
 function getIntroductionString() {
   return `
+  Date of Update: ${new Date().toDateString()}
+
   The following users are included: 
   ${INCLUDED_USERS}
 
@@ -58,11 +60,12 @@ async function getUserScores(
     const data = await malScraper.getWatchListFromUser(user, after, "anime")
     if (data.length) {
       for (const instance of data) {
+        const { animeTitle, score, status } = instance
+        const completed = status === userStatusMap.COMPLETED
         if (validateInstance(instance)) {
-          const { animeTitle, score, status } = instance
-          const completed = status === userStatusMap.COMPLETED
           userScores.push({ title: animeTitle, score, completed })
-        }
+        } else if (completed)
+          userScores.push({ title: animeTitle, score: 0, completed })
       }
       return getUserScores(user, cacheObj, userObject, after + 300)
     }
@@ -72,8 +75,12 @@ async function getUserScores(
     //400: non-public list; 404: user deleted list or changed user
     if (
       e.message === "Request failed with status code 400" ||
-      e.message === "Request failed with status code 404"
+      e.message === "Request failed with status code 404" ||
+      e.message === "Request failed with status code 403"
     ) {
+      if (e.message === "Request failed with status code 403") {
+        console.log("Look at forbidden error")
+      }
       if (cacheObj && cacheObj[user]) {
         return { [user]: cacheObj[user] }
       } else INACESSABLE_USERS.push(user)
@@ -83,13 +90,18 @@ async function getUserScores(
 
 /*
 Testing user function
+
 */
 async function printUser(user) {
-  const data = await getUserScores(user)
-  console.log("Length of data:", data[user].length)
-  fs.writeFileSync("test.json", JSON.stringify(data), { flag: "w" })
+  try {
+    const data = await getUserScores(user, {})
+    console.log("Length of data:", data[user].length)
+    fs.writeFileSync("test.json", JSON.stringify(data), { flag: "w" })
+  } catch (e) {
+    console.log(e.message)
+  }
 }
-//printUser("zenmodeman")
+//printUser("mcm")
 
 function validateInstance(instance) {
   const {
@@ -122,11 +134,15 @@ function aggregateUser(userObject, aggregationObject) {
         data: { currentMean: 0, totalUsers: 0, users: {}, totalCompleted: 0 },
       }
     const { data } = aggregationObject[title]
-    data.currentMean = (
-      (data.currentMean * data.totalUsers + score) /
-      (data.totalUsers + 1)
-    ).toFixed(2)
-    data.totalUsers += 1
+    if (score) {
+      // if score is 0, don't update mean or total users
+      data.currentMean = (
+        (data.currentMean * data.totalUsers + score) /
+        (data.totalUsers + 1)
+      ).toFixed(2)
+      data.totalUsers += 1
+    }
+
     data.totalCompleted = completed
       ? data.totalCompleted + 1
       : data.totalCompleted
@@ -144,17 +160,21 @@ async function aggregateData(
   cacheObj = null,
   cacheFileName = "testCache.txt"
 ) {
-  const aggregationObject = {}
-  for (const user of userList) {
-    const userObject = await getUserScores(user, cacheObj)
-    if (!userObject) continue
-    aggregateUser(userObject, aggregationObject)
-    INCLUDED_USERS.push(user)
-    if (cacheObj) cacheObj[user] = userObject[user]
+  try {
+    const aggregationObject = {}
+    for (const user of userList) {
+      const userObject = await getUserScores(user, cacheObj)
+      if (!userObject) continue
+      aggregateUser(userObject, aggregationObject)
+      INCLUDED_USERS.push(user)
+      if (cacheObj) cacheObj[user] = userObject[user]
+    }
+    if (cacheObj && cacheFileName) cacheData(cacheObj, cacheFileName)
+    const outputData = getOutputData(aggregationObject)
+    storeAggregation(outputData, storageFileName)
+  } catch (e) {
+    console.log(e.message)
   }
-  if (cacheObj && cacheFileName) cacheData(cacheObj, cacheFileName)
-  const outputData = getOutputData(aggregationObject)
-  storeAggregation(outputData, storageFileName)
 }
 
 function storeAggregation(outputData, storageFileName) {
@@ -170,7 +190,7 @@ function storeAggregation(outputData, storageFileName) {
     const placement = i + 1
     const { title, data } = sortedData[i]
     const { pcMean, currentMean, totalUsers, totalCompleted } = data
-    const placementString = `${placement}. ${title} - Psuedocount Mean: ${pcMean}; Number of Users: ${totalUsers}; Real Mean: ${currentMean}; Total Completed: ${totalCompleted} \n`
+    const placementString = `${placement}. ${title} - Psuedocount Mean: ${pcMean}; Number of Scores: ${totalUsers}; Real Mean: ${currentMean}; Total Completed: ${totalCompleted} \n`
     fs.writeFileSync(storageFileName, placementString, { flag: "a" })
   }
   fs.writeFileSync(storageFileName, "\n Most Watched: \n", { flag: "a" })
@@ -224,13 +244,14 @@ function getOutputData(aggregationData) {
 /*
 const userList = uniqueArrayFromTxt("JusticeUserList.txt")
 const cacheObj = getCacheObjFromFile("JusticeCache.json")
-aggregateData(userList, "TestJusticeScores.txt", cacheObj, "JusticeCache.json")
-
+aggregateData(userList, "JusticeScores.txt", cacheObj, "JusticeCache.json")
 */
 
+/*
 const userList = uniqueArrayFromTxt("mcmServerUsers.txt", "\r\n")
 const cacheObj = getCacheObjFromFile("mcmServerCache.json")
 aggregateData(userList, "mcmServerScores.txt", cacheObj, "mcmServerCache.json")
+*/
 
 function getCacheObjFromFile(fileName) {
   return JSON.parse(fs.readFileSync(fileName))
