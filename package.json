@@ -1,0 +1,24 @@
+{
+  "name": "malaggregation",
+  "version": "1.0.0",
+  "description": "A project that aggregates MyAnimeList scores for a given list of users",
+  "main": "MALAggregate.js",
+  "dependencies": {
+    "axios": "0.21.1",
+    "mal-scraper": "^2.7.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnimeshKC/MAL-Aggregation.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/AnimeshKC/MAL-Aggregation/issues"
+  },
+  "homepage": "https://github.com/AnimeshKC/MAL-Aggregation#readme"
+}
