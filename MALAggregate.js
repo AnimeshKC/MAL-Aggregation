@@ -1,29 +1,33 @@
-const malScraper = require("mal-scraper")
-const fs = require("fs")
-const { cachedDataVersionTag } = require("v8")
-const INCLUDED_USERS = []
-const INACESSABLE_USERS = []
-let scoreObject = {}
-const MINIMUM_USERS = 5
-const PSUEDOCOUNT_VALUE = 5.5
-const PSUEDOCOUNT_FREQUENCY = 1
-const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 }
+const malScraper = require("mal-scraper");
+const fs = require("fs");
+const { cachedDataVersionTag } = require("v8");
+const INCLUDED_USERS = [];
+const INACESSABLE_USERS = [];
+let scoreObject = {};
+const MINIMUM_USERS = 5;
+const PSUEDOCOUNT_VALUE = 5.5;
+const PSUEDOCOUNT_FREQUENCY = 2;
+const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 };
 const userStatusMap = {
   CONSUMING: 1,
   COMPLETED: 2,
   ON_HOLD: 3,
   DROPPED: 4,
   PLAN_TO_CONSUME: 5,
-}
-const MINIMUM_COMPLETED_RATIO = 0.33
+};
+const MINIMUM_COMPLETED_RATIO = 0.33;
 function getIntroductionString() {
   return `
   Date of Update: ${new Date().toDateString()}
 
+  IMPORTANT NOTE: The Scraper obtains data based on the user's default animelist page, 
+  so for those whose lists default to "Currently Watching" rather than "All Anime" will
+  have incomplete results. 
+
   The following users are included: 
   ${INCLUDED_USERS}
 
-  The following users could not be included, either because their lists are not public or because their accounts no longer exist: 
+  The following users could not be included, either because their lists are not public (private or friend restricted) or because their accounts no longer exist: 
   
   ${INACESSABLE_USERS}
   
@@ -34,7 +38,7 @@ function getIntroductionString() {
   }% of the work.
   
   Scores are provided only for anime that have scores from at least ${MINIMUM_USERS} users
-  `
+  `;
 }
 /*
 {item1: {currentMean: 0, totalUsers: 0, users: {}}}
@@ -43,7 +47,7 @@ function getIntroductionString() {
 //const userList = [...new Set(textList)]
 
 function uniqueArrayFromTxt(txtPath, splitString = "\n") {
-  return [...new Set(fs.readFileSync(txtPath).toString().split(splitString))]
+  return [...new Set(fs.readFileSync(txtPath).toString().split(splitString))];
 }
 
 async function getUserScores(
@@ -53,24 +57,26 @@ async function getUserScores(
   after = 0
 ) {
   try {
+    await sleep(750);
     const userObject = !Object.entries(prevObject).length
       ? { [user]: [] }
-      : { ...prevObject }
-    const userScores = userObject[user]
-    const data = await malScraper.getWatchListFromUser(user, after, "anime")
+      : { ...prevObject };
+    const userScores = userObject[user];
+    const data = await malScraper.getWatchListFromUser(user, after, "anime");
     if (data.length) {
       for (const instance of data) {
-        const { animeTitle, score, status } = instance
-        const completed = status === userStatusMap.COMPLETED
+        const { animeTitle, score, status } = instance;
+        const completed = status === userStatusMap.COMPLETED;
         if (validateInstance(instance)) {
-          userScores.push({ title: animeTitle, score, completed })
+          userScores.push({ title: animeTitle, score, completed });
         } else if (completed)
-          userScores.push({ title: animeTitle, score: 0, completed })
+          userScores.push({ title: animeTitle, score: 0, completed });
       }
-      return getUserScores(user, cacheObj, userObject, after + 300)
+      return getUserScores(user, cacheObj, userObject, after + 300);
     }
-    console.count("Waiting")
-    return userObject
+
+    console.count("Waiting");
+    return userObject;
   } catch (e) {
     //400: non-public list; 404: user deleted list or changed user
     if (
@@ -79,12 +85,13 @@ async function getUserScores(
       e.message === "Request failed with status code 403"
     ) {
       if (e.message === "Request failed with status code 403") {
-        console.log("Look at forbidden error")
+        console.log("Look at forbidden error");
+        console.log(e);
       }
       if (cacheObj && cacheObj[user]) {
-        return { [user]: cacheObj[user] }
-      } else INACESSABLE_USERS.push(user)
-    } else throw e
+        return { [user]: cacheObj[user] };
+      } else INACESSABLE_USERS.push(user);
+    } else throw e;
   }
 }
 
@@ -94,14 +101,14 @@ Testing user function
 */
 async function printUser(user) {
   try {
-    const data = await getUserScores(user, {})
-    console.log("Length of data:", data[user].length)
-    fs.writeFileSync("test.json", JSON.stringify(data), { flag: "w" })
+    const data = await getUserScores(user, {});
+    console.log("Length of data:", data[user].length);
+    fs.writeFileSync("test.json", JSON.stringify(data), { flag: "w" });
   } catch (e) {
-    console.log(e.message)
+    console.log(e.message);
   }
 }
-//printUser("mcm")
+// printUser("Crani");
 
 function validateInstance(instance) {
   const {
@@ -110,48 +117,48 @@ function validateInstance(instance) {
     numWatchedEpisodes,
     animeNumEpisodes,
     status,
-  } = instance
-  const isFinished = animeAiringStatus === seriesStatusMap.FINISHED
-  const isOngoing = animeAiringStatus === seriesStatusMap.ONGOING
+  } = instance;
+  const isFinished = animeAiringStatus === seriesStatusMap.FINISHED;
+  const isOngoing = animeAiringStatus === seriesStatusMap.ONGOING;
 
   const validFinishedScore =
     score &&
     isFinished &&
     Math.floor((numWatchedEpisodes / animeNumEpisodes) * 100) >=
-      MINIMUM_COMPLETED_RATIO * 100
+      MINIMUM_COMPLETED_RATIO * 100;
   const validOngoingScore =
-    score && isOngoing && status !== userStatusMap.PLAN_TO_CONSUME
-  return validFinishedScore || validOngoingScore
+    score && isOngoing && status !== userStatusMap.PLAN_TO_CONSUME;
+  return validFinishedScore || validOngoingScore;
 }
 
 function aggregateUser(userObject, aggregationObject) {
-  const user = Object.keys(userObject)[0]
-  const userScores = userObject[user]
+  const user = Object.keys(userObject)[0];
+  const userScores = userObject[user];
   for (const instance of userScores) {
-    const { title, score, completed } = instance
+    const { title, score, completed } = instance;
     if (!aggregationObject[title])
       aggregationObject[title] = {
         data: { currentMean: 0, totalUsers: 0, users: {}, totalCompleted: 0 },
-      }
-    const { data } = aggregationObject[title]
+      };
+    const { data } = aggregationObject[title];
     if (score) {
       // if score is 0, don't update mean or total users
       data.currentMean = (
         (data.currentMean * data.totalUsers + score) /
         (data.totalUsers + 1)
-      ).toFixed(2)
-      data.totalUsers += 1
+      ).toFixed(2);
+      data.totalUsers += 1;
     }
 
     data.totalCompleted = completed
       ? data.totalCompleted + 1
-      : data.totalCompleted
-    data.users[user] = score
+      : data.totalCompleted;
+    data.users[user] = score;
   }
 }
 
 function cacheData(cacheObject, cacheFileName) {
-  fs.writeFileSync(cacheFileName, JSON.stringify(cacheObject))
+  fs.writeFileSync(cacheFileName, JSON.stringify(cacheObject));
 }
 
 async function aggregateData(
@@ -161,91 +168,138 @@ async function aggregateData(
   cacheFileName = "testCache.txt"
 ) {
   try {
-    const aggregationObject = {}
+    const aggregationObject = {};
     for (const user of userList) {
-      const userObject = await getUserScores(user, cacheObj)
-      if (!userObject) continue
-      aggregateUser(userObject, aggregationObject)
-      INCLUDED_USERS.push(user)
-      if (cacheObj) cacheObj[user] = userObject[user]
+      const userObject = await getUserScores(user, cacheObj);
+      if (!userObject) continue;
+      aggregateUser(userObject, aggregationObject);
+      INCLUDED_USERS.push(user);
+      if (cacheObj) cacheObj[user] = userObject[user];
     }
-    if (cacheObj && cacheFileName) cacheData(cacheObj, cacheFileName)
-    const outputData = getOutputData(aggregationObject)
-    storeAggregation(outputData, storageFileName)
+    if (cacheObj && cacheFileName) cacheData(cacheObj, cacheFileName);
+    const outputData = getOutputData(aggregationObject, cacheObj);
+    storeAggregation(outputData, storageFileName);
   } catch (e) {
-    console.log(e.message)
+    console.log(e.message);
   }
 }
 
 function storeAggregation(outputData, storageFileName) {
-  const { sortedData, top100Completed } = outputData
-  const introductionString = getIntroductionString()
+  // variationData: {
+  //   RMSE: string;
+  //   count: number;
+  //   username: string;
+  // }
+  // [];
+  const { sortedData, top100Completed, variationData } = outputData;
+  const introductionString = getIntroductionString();
 
-  console.log("starting to write to file")
-  fs.writeFileSync(storageFileName, introductionString, { flag: "w" })
+  console.log("starting to write to file");
+  fs.writeFileSync(storageFileName, introductionString, { flag: "w" });
 
-  fs.writeFileSync(storageFileName, "\n Rankings: \n", { flag: "a" })
+  fs.writeFileSync(storageFileName, "\n Rankings: \n", { flag: "a" });
 
   for (let i = 0; i < sortedData.length; i++) {
-    const placement = i + 1
-    const { title, data } = sortedData[i]
-    const { pcMean, currentMean, totalUsers, totalCompleted } = data
-    const placementString = `${placement}. ${title} - Psuedocount Mean: ${pcMean}; Number of Scores: ${totalUsers}; Real Mean: ${currentMean}; Total Completed: ${totalCompleted} \n`
-    fs.writeFileSync(storageFileName, placementString, { flag: "a" })
+    const placement = i + 1;
+    const { title, data } = sortedData[i];
+    const { pcMean, currentMean, totalUsers, totalCompleted } = data;
+    const placementString = `${placement}. ${title} - Psuedocount Mean: ${pcMean}; Number of Scores: ${totalUsers}; Real Mean: ${currentMean}; Total Completed: ${totalCompleted} \n`;
+    fs.writeFileSync(storageFileName, placementString, { flag: "a" });
   }
-  fs.writeFileSync(storageFileName, "\n Most Watched: \n", { flag: "a" })
+  fs.writeFileSync(
+    storageFileName,
+    "\n Root Mean Score Error for Users with at least 50 common: \n",
+    { flag: "a" }
+  );
+  for (const { username, count, RMSE } of variationData) {
+    const placementString = `user: ${username}; RMSE: ${RMSE}; count: ${count} \n`;
+    fs.writeFileSync(storageFileName, placementString, { flag: "a" });
+  }
+  fs.writeFileSync(storageFileName, "\n Most Watched: \n", { flag: "a" });
   for (let i = 0; i < top100Completed.length; i++) {
-    const placement = i + 1
-    const { title, totalCompleted } = top100Completed[i]
-    const placementString = `${placement}. ${title} - Total Completed: ${totalCompleted} \n`
-    fs.writeFileSync(storageFileName, placementString, { flag: "a" })
+    const placement = i + 1;
+    const { title, totalCompleted } = top100Completed[i];
+    const placementString = `${placement}. ${title} - Total Completed: ${totalCompleted} \n`;
+    fs.writeFileSync(storageFileName, placementString, { flag: "a" });
   }
-  console.log("done writing to file")
+  console.log("done writing to file");
 }
 
-function getOutputData(aggregationData) {
+function getOutputData(aggregationData, cacheObj = null) {
   //returns the proper sorted data format and the proper completion data format
   const unfilteredArr = Object.keys(aggregationData).map((key) => {
-    return { title: key, data: aggregationData[key].data }
-  })
+    return { title: key, data: aggregationData[key].data };
+  });
 
   const filteredArr = unfilteredArr.filter(
     (scoredInstance) => scoredInstance.data.totalUsers >= MINIMUM_USERS
-  )
+  );
   const psuedoCountedArr = filteredArr.map((scoredInstance) => {
-    const newScoredInstance = { ...scoredInstance }
-    const { data } = newScoredInstance
-    const { currentMean, totalUsers } = data
+    const newScoredInstance = { ...scoredInstance };
+    const { data } = newScoredInstance;
+    const { currentMean, totalUsers } = data;
     data.pcMean = (
       (currentMean * totalUsers + PSUEDOCOUNT_VALUE * PSUEDOCOUNT_FREQUENCY) /
       (totalUsers + PSUEDOCOUNT_FREQUENCY)
-    ).toFixed(2)
-    return newScoredInstance
-  })
+    ).toFixed(2);
+    return newScoredInstance;
+  });
   const sortedData = psuedoCountedArr.sort(
     (a, b) =>
       b.data.pcMean - a.data.pcMean ||
       b.data.totalUsers - a.data.totalUsers ||
       b.data.totalCompleted - a.data.totalCompleted
-  )
+  );
   const completedArr = filteredArr.map((scoredInstance) => {
-    const { title, data } = scoredInstance
-    const { totalCompleted } = data
-    return { title, totalCompleted }
-  })
+    const { title, data } = scoredInstance;
+    const { totalCompleted } = data;
+    return { title, totalCompleted };
+  });
   const sortedCompletedArr = completedArr.sort(
     (a, b) => b.totalCompleted - a.totalCompleted
-  )
-  const top100Completed = sortedCompletedArr.slice(0, 100)
+  );
+  const top100Completed = sortedCompletedArr.slice(0, 100);
 
-  return { sortedData, top100Completed }
+  let variationData = null;
+  if (cacheObj) {
+    variationData = getVariationData(cacheObj, psuedoCountedArr);
+  }
+  return { sortedData, top100Completed, variationData };
+}
+function getVariationData(cacheObj, psuedoCountedArr) {
+  //psuedoCountedArr: {title, data: {pcmean}}[]
+  const userArr = Object.keys(cacheObj);
+  const variationData = [];
+  for (const username of userArr) {
+    const scores = cacheObj[username];
+
+    //simple parameter for now, to handle incomplete cases
+    if (scores.length < 40) continue;
+    let userDeviation = 0;
+    let count = 0;
+    for (const anime of scores) {
+      const aggregateData = psuedoCountedArr.find(
+        (element) => element.title === anime.title
+      );
+      if (!aggregateData) continue;
+      const curr_deviation = Math.pow(
+        aggregateData.data.pcMean - anime.score,
+        2
+      );
+      userDeviation += curr_deviation;
+      count++;
+    }
+    const RMSE = Math.sqrt(userDeviation / count).toFixed(2);
+    variationData.push({ RMSE, count, username });
+  }
+  const sortedVariationData = variationData.sort((a, b) => a.RMSE - b.RMSE);
+  return sortedVariationData;
 }
 
-/*
-const userList = uniqueArrayFromTxt("JusticeUserList.txt")
-const cacheObj = getCacheObjFromFile("JusticeCache.json")
-aggregateData(userList, "JusticeScores.txt", cacheObj, "JusticeCache.json")
-*/
+// const userList = uniqueArrayFromTxt("JusticeUserList.txt");
+// console.log(userList);
+// const cacheObj = getCacheObjFromFile("JusticeCache.json");
+// aggregateData(userList, "JusticeScores.txt", cacheObj, "JusticeCache.json");
 
 /*
 const userList = uniqueArrayFromTxt("mcmServerUsers.txt", "\r\n")
@@ -254,5 +308,11 @@ aggregateData(userList, "mcmServerScores.txt", cacheObj, "mcmServerCache.json")
 */
 
 function getCacheObjFromFile(fileName) {
-  return JSON.parse(fs.readFileSync(fileName))
+  return JSON.parse(fs.readFileSync(fileName));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
