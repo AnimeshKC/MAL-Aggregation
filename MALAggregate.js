@@ -7,6 +7,7 @@ let scoreObject = {};
 const MINIMUM_USERS = 5;
 const PSUEDOCOUNT_VALUE = 5.5;
 const PSUEDOCOUNT_FREQUENCY = 2;
+const VARIATION_MIN = 40;
 const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 };
 const userStatusMap = {
   CONSUMING: 1,
@@ -21,7 +22,7 @@ function getIntroductionString() {
   Date of Update: ${new Date().toDateString()}
 
   IMPORTANT NOTE: The Scraper obtains data based on the user's default animelist page, 
-  so for those whose lists default to "Currently Watching" rather than "All Anime" will
+  so for those whose lists default to, for example, "Currently Watching" rather than "All Anime" will
   have incomplete results. 
 
   The following users are included: 
@@ -57,7 +58,7 @@ async function getUserScores(
   after = 0
 ) {
   try {
-    await sleep(750);
+    await sleep(5000);
     const userObject = !Object.entries(prevObject).length
       ? { [user]: [] }
       : { ...prevObject };
@@ -208,11 +209,11 @@ function storeAggregation(outputData, storageFileName) {
   }
   fs.writeFileSync(
     storageFileName,
-    "\n Root Mean Score Error for Users with at least 50 common: \n",
+    `\n Score Errors for Users with at least ${VARIATION_MIN} entries scored from the rankings: \n`,
     { flag: "a" }
   );
-  for (const { username, count, RMSE } of variationData) {
-    const placementString = `user: ${username}; RMSE: ${RMSE}; count: ${count} \n`;
+  for (const { username, count, RMSE, MAE } of variationData) {
+    const placementString = `user: ${username}; RMSE: ${RMSE}; MAE: ${MAE} count: ${count} \n`;
     fs.writeFileSync(storageFileName, placementString, { flag: "a" });
   }
   fs.writeFileSync(storageFileName, "\n Most Watched: \n", { flag: "a" });
@@ -271,34 +272,44 @@ function getVariationData(cacheObj, psuedoCountedArr) {
   const userArr = Object.keys(cacheObj);
   const variationData = [];
   for (const username of userArr) {
-    const scores = cacheObj[username];
+    if (!(username in cacheObj)) continue;
+    const fullData = cacheObj[username];
+    const scores = fullData.filter((element) => element.score);
 
     //simple parameter for now, to handle incomplete cases
-    if (scores.length < 40) continue;
-    let userDeviation = 0;
+    if (scores.length < VARIATION_MIN) continue;
+    let userSquareDeviation = 0;
+    let userAbsoluteDeviation = 0;
     let count = 0;
-    for (const anime of scores) {
+    for (const work of scores) {
       const aggregateData = psuedoCountedArr.find(
-        (element) => element.title === anime.title
+        (element) => element.title === work.title
       );
       if (!aggregateData) continue;
-      const curr_deviation = Math.pow(
-        aggregateData.data.pcMean - anime.score,
+
+      userSquareDeviation += Math.pow(
+        aggregateData.data.pcMean - work.score,
         2
       );
-      userDeviation += curr_deviation;
+
+      userAbsoluteDeviation += Math.abs(aggregateData.data.pcMean - work.score);
+
       count++;
     }
-    const RMSE = Math.sqrt(userDeviation / count).toFixed(2);
-    variationData.push({ RMSE, count, username });
+    const RMSE = Math.sqrt(userSquareDeviation / count).toFixed(2);
+    const MAE = (userAbsoluteDeviation / count).toFixed(2);
+    variationData.push({ RMSE, count, username, MAE });
   }
-  const sortedVariationData = variationData.sort((a, b) => a.RMSE - b.RMSE);
+  const sortedVariationData = variationData.sort(
+    (a, b) => a.RMSE - b.RMSE || a.MAE - b.MAE
+  );
   return sortedVariationData;
 }
 
 // const userList = uniqueArrayFromTxt("JusticeUserList.txt");
 // console.log(userList);
-// const cacheObj = getCacheObjFromFile("JusticeCache.json");
+// const cacheObj = getCacheObjFromFile("JusticeCacheCleaned.json");
+// console.log(cacheObj);
 // aggregateData(userList, "JusticeScores.txt", cacheObj, "JusticeCache.json");
 
 /*
