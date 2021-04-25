@@ -4,10 +4,11 @@ const { cachedDataVersionTag } = require("v8");
 const INCLUDED_USERS = [];
 const INACESSABLE_USERS = [];
 let scoreObject = {};
-const MINIMUM_USERS = 5;
+const MINIMUM_USERS = 2;
 const PSUEDOCOUNT_VALUE = 5.5;
 const PSUEDOCOUNT_FREQUENCY = 2;
 const VARIATION_MIN = 40;
+const RAND_SLEEP_MAX = 750;
 const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 };
 const userStatusMap = {
   CONSUMING: 1,
@@ -38,7 +39,7 @@ function getIntroductionString() {
     MINIMUM_COMPLETED_RATIO * 100
   }% of the work.
   
-  Scores are provided only for anime that have scores from at least ${MINIMUM_USERS} users
+  Scores are provided only for works that have scores from at least ${MINIMUM_USERS} users
   `;
 }
 /*
@@ -51,29 +52,40 @@ function uniqueArrayFromTxt(txtPath, splitString = "\n") {
   return [...new Set(fs.readFileSync(txtPath).toString().split(splitString))];
 }
 
+/*
+type: "anime" or "manga"
+*/
+function getTitleFromInstance(instance, type = "anime") {
+  if (type === "manga") {
+    return instance.mangaTitle;
+  }
+  return instance.animeTitle;
+}
 async function getUserScores(
   user,
   cacheObj = null,
   prevObject = {},
-  after = 0
+  after = 0,
+  type = "anime"
 ) {
   try {
-    await sleep(5000);
+    const rand_sleep = Math.random() * RAND_SLEEP_MAX;
+    await sleep(rand_sleep);
     const userObject = !Object.entries(prevObject).length
       ? { [user]: [] }
       : { ...prevObject };
     const userScores = userObject[user];
-    const data = await malScraper.getWatchListFromUser(user, after, "anime");
+    const data = await malScraper.getWatchListFromUser(user, after, type);
     if (data.length) {
       for (const instance of data) {
-        const { animeTitle, score, status } = instance;
+        const { score, status } = instance;
+        title = getTitleFromInstance(instance, type);
         const completed = status === userStatusMap.COMPLETED;
-        if (validateInstance(instance)) {
-          userScores.push({ title: animeTitle, score, completed });
-        } else if (completed)
-          userScores.push({ title: animeTitle, score: 0, completed });
+        if (validateIncompleteInstance(instance, type)) {
+          userScores.push({ title, score, completed });
+        } else if (completed) userScores.push({ title, score: 0, completed });
       }
-      return getUserScores(user, cacheObj, userObject, after + 300);
+      return getUserScores(user, cacheObj, userObject, after + 300, type);
     }
 
     console.count("Waiting");
@@ -109,23 +121,25 @@ async function printUser(user) {
     console.log(e.message);
   }
 }
-// printUser("Crani");
+// printUser("Blue_green");
 
-function validateInstance(instance) {
-  const {
-    animeAiringStatus,
-    score,
-    numWatchedEpisodes,
-    animeNumEpisodes,
-    status,
-  } = instance;
-  const isFinished = animeAiringStatus === seriesStatusMap.FINISHED;
-  const isOngoing = animeAiringStatus === seriesStatusMap.ONGOING;
-
+//validates whether an incomplete instance counts
+function validateIncompleteInstance(instance, type = "anime") {
+  const { score, status } = instance;
+  const seriesStatus =
+    type === "anime"
+      ? instance.animeAiringStatus
+      : instance.mangaPublishingStatus;
+  const seriesCount =
+    type === "anime" ? instance.animeNumEpisodes : instance.mangaNumChapters;
+  const isFinished = seriesStatus === seriesStatusMap.FINISHED;
+  const isOngoing = seriesStatus === seriesStatusMap.ONGOING;
+  const userCount =
+    type === "anime" ? instance.numWatchedEpisodes : instance.nbReadChapters;
   const validFinishedScore =
     score &&
     isFinished &&
-    Math.floor((numWatchedEpisodes / animeNumEpisodes) * 100) >=
+    Math.floor((userCount / seriesCount) * 100) >=
       MINIMUM_COMPLETED_RATIO * 100;
   const validOngoingScore =
     score && isOngoing && status !== userStatusMap.PLAN_TO_CONSUME;
@@ -166,12 +180,15 @@ async function aggregateData(
   userList,
   storageFileName = "test.txt",
   cacheObj = null,
-  cacheFileName = "testCache.txt"
+  cacheFileName = "testCache.txt",
+  type = "anime"
 ) {
   try {
     const aggregationObject = {};
     for (const user of userList) {
-      const userObject = await getUserScores(user, cacheObj);
+      const userObject = await getUserScores(user, cacheObj, {}, 0, type);
+      // const rand_sleep = Math.random() * RAND_SLEEP_MAX;
+      // sleep(rand_sleep);
       if (!userObject) continue;
       aggregateUser(userObject, aggregationObject);
       INCLUDED_USERS.push(user);
@@ -212,10 +229,13 @@ function storeAggregation(outputData, storageFileName) {
     `\n Score Errors for Users with at least ${VARIATION_MIN} entries scored from the rankings: \n`,
     { flag: "a" }
   );
-  for (const { username, count, RMSE, MAE } of variationData) {
-    const placementString = `user: ${username}; RMSE: ${RMSE}; MAE: ${MAE} count: ${count} \n`;
+  for (let i = 0; i < variationData.length; i++) {
+    const placement = i + 1;
+    const { username, count, RMSE, MAE } = variationData[i];
+    const placementString = `${placement}. user: ${username}; RMSE: ${RMSE}; MAE: ${MAE}; count: ${count} \n`;
     fs.writeFileSync(storageFileName, placementString, { flag: "a" });
   }
+
   fs.writeFileSync(storageFileName, "\n Most Watched: \n", { flag: "a" });
   for (let i = 0; i < top100Completed.length; i++) {
     const placement = i + 1;
@@ -307,10 +327,20 @@ function getVariationData(cacheObj, psuedoCountedArr) {
 }
 
 // const userList = uniqueArrayFromTxt("JusticeUserList.txt");
-// console.log(userList);
-// const cacheObj = getCacheObjFromFile("JusticeCacheCleaned.json");
-// console.log(cacheObj);
-// aggregateData(userList, "JusticeScores.txt", cacheObj, "JusticeCache.json");
+// aggregateData(
+//   userList,
+//   "JusticeScores.txt",
+//   getCacheObjFromFile("JusticeCache.json"),
+//   "JusticeCache.json",
+//   "anime"
+// );
+// aggregateData(
+//   userList,
+//   "JusticeManga.txt",
+//   getCacheObjFromFile("JusticeManga.json"),
+//   "JusticeManga.json",
+//   "manga"
+// );
 
 /*
 const userList = uniqueArrayFromTxt("mcmServerUsers.txt", "\r\n")

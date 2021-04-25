@@ -5,7 +5,7 @@
   "main": "MALAggregate.js",
   "dependencies": {
     "axios": "0.21.1",
-    "mal-scraper": "^2.7.1"
+    "mal-scraper": "^2.11.3"
   },
   "devDependencies": {},
   "scripts": {
