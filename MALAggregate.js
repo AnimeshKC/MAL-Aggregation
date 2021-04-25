@@ -5,8 +5,8 @@ const INCLUDED_USERS = [];
 const INACESSABLE_USERS = [];
 let scoreObject = {};
 const MINIMUM_USERS = 5;
-const PSUEDOCOUNT_VALUE = 5.5;
-const PSUEDOCOUNT_FREQUENCY = 2;
+const pseudocount_VALUE = 5.5;
+const pseudocount_FREQUENCY = 2;
 const VARIATION_MIN = 10;
 const RAND_SLEEP_MAX = 2000;
 const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 };
@@ -33,7 +33,7 @@ function getIntroductionString() {
   
   ${INACESSABLE_USERS}
   
-  This aggregation uses psuedocounts to reduce skewing of data with a smaller sample size. The psuecount value used is ${PSUEDOCOUNT_VALUE}, and the frequency is ${PSUEDOCOUNT_FREQUENCY}
+  This aggregation uses pseudocounts to reduce skewing of data with a smaller sample size. The psuecount value used is ${pseudocount_VALUE}, and the frequency is ${pseudocount_FREQUENCY}
   
   For a user's score to count for a finished title, the user must have consumed at least ${
     MINIMUM_COMPLETED_RATIO * 100
@@ -221,7 +221,7 @@ function storeAggregation(outputData, storageFileName) {
     const placement = i + 1;
     const { title, data } = sortedData[i];
     const { pcMean, currentMean, totalUsers, totalCompleted } = data;
-    const placementString = `${placement}. ${title} - Psuedocount Mean: ${pcMean}; Number of Scores: ${totalUsers}; Real Mean: ${currentMean}; Total Completed: ${totalCompleted} \n`;
+    const placementString = `${placement}. ${title} - Pseudocount Mean: ${pcMean}; Number of Scores: ${totalUsers}; Real Mean: ${currentMean}; Total Completed: ${totalCompleted} \n`;
     fs.writeFileSync(storageFileName, placementString, { flag: "a" });
   }
   fs.writeFileSync(
@@ -236,7 +236,7 @@ function storeAggregation(outputData, storageFileName) {
     fs.writeFileSync(storageFileName, placementString, { flag: "a" });
   }
 
-  fs.writeFileSync(storageFileName, "\n Most Watched: \n", { flag: "a" });
+  fs.writeFileSync(storageFileName, "\n Most Completed: \n", { flag: "a" });
   for (let i = 0; i < top100Completed.length; i++) {
     const placement = i + 1;
     const { title, totalCompleted } = top100Completed[i];
@@ -255,17 +255,17 @@ function getOutputData(aggregationData, cacheObj = null) {
   const filteredArr = unfilteredArr.filter(
     (scoredInstance) => scoredInstance.data.totalUsers >= MINIMUM_USERS
   );
-  const psuedoCountedArr = filteredArr.map((scoredInstance) => {
+  const pseudocountedArr = filteredArr.map((scoredInstance) => {
     const newScoredInstance = { ...scoredInstance };
     const { data } = newScoredInstance;
     const { currentMean, totalUsers } = data;
     data.pcMean = (
-      (currentMean * totalUsers + PSUEDOCOUNT_VALUE * PSUEDOCOUNT_FREQUENCY) /
-      (totalUsers + PSUEDOCOUNT_FREQUENCY)
+      (currentMean * totalUsers + pseudocount_VALUE * pseudocount_FREQUENCY) /
+      (totalUsers + pseudocount_FREQUENCY)
     ).toFixed(2);
     return newScoredInstance;
   });
-  const sortedData = psuedoCountedArr.sort(
+  const sortedData = pseudocountedArr.sort(
     (a, b) =>
       b.data.pcMean - a.data.pcMean ||
       b.data.totalUsers - a.data.totalUsers ||
@@ -283,12 +283,12 @@ function getOutputData(aggregationData, cacheObj = null) {
 
   let variationData = null;
   if (cacheObj) {
-    variationData = getVariationData(cacheObj, psuedoCountedArr);
+    variationData = getVariationData(cacheObj, pseudocountedArr);
   }
   return { sortedData, top100Completed, variationData };
 }
-function getVariationData(cacheObj, psuedoCountedArr) {
-  //psuedoCountedArr: {title, data: {pcmean}}[]
+function getVariationData(cacheObj, pseudocountedArr) {
+  //pseudocountedArr: {title, data: {pcmean}}[]
   const userArr = Object.keys(cacheObj);
   const variationData = [];
   for (const username of userArr) {
@@ -302,7 +302,7 @@ function getVariationData(cacheObj, psuedoCountedArr) {
     let userAbsoluteDeviation = 0;
     let count = 0;
     for (const work of scores) {
-      const aggregateData = psuedoCountedArr.find(
+      const aggregateData = pseudocountedArr.find(
         (element) => element.title === work.title
       );
       if (!aggregateData) continue;
@@ -329,8 +329,8 @@ function getVariationData(cacheObj, psuedoCountedArr) {
   return sortedVariationData;
 }
 
-// const userList = uniqueArrayFromTxt("JusticeUserList.txt");
-// console.log(userList);
+const userList = uniqueArrayFromTxt("JusticeUserList.txt");
+console.log(userList);
 // // aggregateData(
 // //   userList,
 // //   "JusticeScores.txt",
@@ -338,13 +338,13 @@ function getVariationData(cacheObj, psuedoCountedArr) {
 // //   "JusticeCache.json",
 // //   "anime"
 // // );
-// aggregateData(
-//   userList,
-//   "JusticeManga.txt",
-//   getCacheObjFromFile("JusticeManga.json"),
-//   "JusticeManga.json",
-//   "manga"
-// );
+aggregateData(
+  userList,
+  "JusticeManga.txt",
+  getCacheObjFromFile("JusticeManga.json"),
+  "JusticeManga.json",
+  "manga"
+);
 
 /*
 const userList = uniqueArrayFromTxt("mcmServerUsers.txt", "\r\n")
