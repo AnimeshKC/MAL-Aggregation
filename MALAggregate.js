@@ -4,18 +4,18 @@ const { cachedDataVersionTag } = require("v8");
 const INCLUDED_USERS = [];
 const INACESSABLE_USERS = [];
 let scoreObject = {};
-const MINIMUM_USERS = 2;
+const MINIMUM_USERS = 5;
 const PSUEDOCOUNT_VALUE = 5.5;
 const PSUEDOCOUNT_FREQUENCY = 2;
-const VARIATION_MIN = 40;
-const RAND_SLEEP_MAX = 750;
+const VARIATION_MIN = 10;
+const RAND_SLEEP_MAX = 2000;
 const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 };
 const userStatusMap = {
   CONSUMING: 1,
   COMPLETED: 2,
   ON_HOLD: 3,
   DROPPED: 4,
-  PLAN_TO_CONSUME: 5,
+  PLAN_TO_CONSUME: 6,
 };
 const MINIMUM_COMPLETED_RATIO = 0.33;
 function getIntroductionString() {
@@ -81,7 +81,7 @@ async function getUserScores(
         const { score, status } = instance;
         title = getTitleFromInstance(instance, type);
         const completed = status === userStatusMap.COMPLETED;
-        if (validateIncompleteInstance(instance, type)) {
+        if (validateInstance(instance, type)) {
           userScores.push({ title, score, completed });
         } else if (completed) userScores.push({ title, score: 0, completed });
       }
@@ -112,19 +112,19 @@ async function getUserScores(
 Testing user function
 
 */
-async function printUser(user) {
+async function printUser(user, type = "anime") {
   try {
-    const data = await getUserScores(user, {});
+    const data = await getUserScores(user, {}, {}, 0, type);
     console.log("Length of data:", data[user].length);
     fs.writeFileSync("test.json", JSON.stringify(data), { flag: "w" });
   } catch (e) {
     console.log(e.message);
   }
 }
-// printUser("Blue_green");
+// printUser("MightyMole", "manga");
 
 //validates whether an incomplete instance counts
-function validateIncompleteInstance(instance, type = "anime") {
+function validateInstance(instance, type = "anime") {
   const { score, status } = instance;
   const seriesStatus =
     type === "anime"
@@ -135,7 +135,7 @@ function validateIncompleteInstance(instance, type = "anime") {
   const isFinished = seriesStatus === seriesStatusMap.FINISHED;
   const isOngoing = seriesStatus === seriesStatusMap.ONGOING;
   const userCount =
-    type === "anime" ? instance.numWatchedEpisodes : instance.nbReadChapters;
+    type === "anime" ? instance.numWatchedEpisodes : instance.numReadChapters;
   const validFinishedScore =
     score &&
     isFinished &&
@@ -186,9 +186,9 @@ async function aggregateData(
   try {
     const aggregationObject = {};
     for (const user of userList) {
+      const rand_sleep = Math.random() * RAND_SLEEP_MAX;
+      sleep(rand_sleep);
       const userObject = await getUserScores(user, cacheObj, {}, 0, type);
-      // const rand_sleep = Math.random() * RAND_SLEEP_MAX;
-      // sleep(rand_sleep);
       if (!userObject) continue;
       aggregateUser(userObject, aggregationObject);
       INCLUDED_USERS.push(user);
@@ -226,7 +226,7 @@ function storeAggregation(outputData, storageFileName) {
   }
   fs.writeFileSync(
     storageFileName,
-    `\n Score Errors for Users with at least ${VARIATION_MIN} entries scored from the rankings: \n`,
+    `\n Score Errors for Users with at least ${VARIATION_MIN} entries scored: \n`,
     { flag: "a" }
   );
   for (let i = 0; i < variationData.length; i++) {
@@ -320,20 +320,24 @@ function getVariationData(cacheObj, psuedoCountedArr) {
     const MAE = (userAbsoluteDeviation / count).toFixed(2);
     variationData.push({ RMSE, count, username, MAE });
   }
-  const sortedVariationData = variationData.sort(
+  const filteredVariationData = variationData.filter(
+    (e) => e.count >= VARIATION_MIN
+  );
+  const sortedVariationData = filteredVariationData.sort(
     (a, b) => a.RMSE - b.RMSE || a.MAE - b.MAE
   );
   return sortedVariationData;
 }
 
 // const userList = uniqueArrayFromTxt("JusticeUserList.txt");
-// aggregateData(
-//   userList,
-//   "JusticeScores.txt",
-//   getCacheObjFromFile("JusticeCache.json"),
-//   "JusticeCache.json",
-//   "anime"
-// );
+// console.log(userList);
+// // aggregateData(
+// //   userList,
+// //   "JusticeScores.txt",
+// //   getCacheObjFromFile("JusticeCache.json"),
+// //   "JusticeCache.json",
+// //   "anime"
+// // );
 // aggregateData(
 //   userList,
 //   "JusticeManga.txt",
