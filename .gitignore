@@ -6,6 +6,7 @@ asstheteFixed.json
 JusticeUserList.txt
 JusticeCache.json
 test.txt
+/UsersFolder
 #---------------------------------------#
 # Project Ignores                       #
 #---------------------------------------#
@@ -129,3 +130,4 @@ test.txt
 testCache.json
 testCache.json
 scrapFunc.js
+json_funcs.js
