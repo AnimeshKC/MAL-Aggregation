@@ -101,7 +101,8 @@ async function getUserObject(
           //   title,
         };
       }
-      sleep(20 + 20 * (after / 300));
+      const sleep_val = 20 + Math.random() * 30;
+      await sleep(sleep_val + sleep_val * (after / 300));
       return getUserObject(username, type, userObject, after + 300);
     }
     console.count("Waiting");
@@ -134,7 +135,7 @@ async function recordUsers(userList, type = "anime", folder = "UsersFolder") {
   const usersArray = [];
   for (let i = 0; i < userList.length; i++) {
     const username = userList[i];
-    sleep(i * 100);
+    sleep(i * 150 + Math.random() * 30);
     const currUserObj = await getUserObject(username, type);
     if (currUserObj) {
       await writeUser(currUserObj, type, folder);
@@ -144,13 +145,13 @@ async function recordUsers(userList, type = "anime", folder = "UsersFolder") {
 }
 
 const folderName = "Justice";
-async function execute(filename) {
+async function execute(filename, type = "anime") {
   const userList = uniqueArrayFromTxt(filename);
-  await recordUsers(userList, "anime");
-  await recordUsers(userList, "manga");
-  console.log("finished both");
+  await recordUsers(userList, type);
 }
-execute("JusticeUserList.txt");
+
+//execute("JusticeUserList.txt", "anime");
+//execute("JusticeUserList.txt", "manga");
 
 async function writeUser(userObj, type = "anime", folder = "UsersFolder") {
   try {
@@ -175,4 +176,4 @@ async function singleTest(username) {
   await writeUser(animeObj, "anime");
   await writeUser(mangaObj, "manga");
 }
-// singleTest("zenmodeman");
+singleTest("VitorVerde");

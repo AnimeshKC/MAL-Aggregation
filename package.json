@@ -4,6 +4,7 @@
   "description": "A project that aggregates MyAnimeList scores for a given list of users",
   "main": "MALAggregate.js",
   "dependencies": {
+    "async": "^3.2.1",
     "axios": "0.21.1",
     "mal-scraper": "^2.11.3"
   },

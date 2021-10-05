@@ -8,7 +8,7 @@ const MINIMUM_USERS = 5;
 const pseudocount_VALUE = 5.5;
 const pseudocount_FREQUENCY = 2;
 const VARIATION_MIN = 10;
-const RAND_SLEEP_MAX = 2000;
+const RAND_SLEEP_MAX = 6000;
 const seriesStatusMap = { ONGOING: 1, FINISHED: 2, NOT_YET_STARTED: 3 };
 const userStatusMap = {
   CONSUMING: 1,
@@ -70,7 +70,7 @@ async function getUserScores(
 ) {
   try {
     const rand_sleep = Math.random() * RAND_SLEEP_MAX;
-    await sleep(rand_sleep);
+    // await sleep(rand_sleep);
     const userObject = !Object.entries(prevObject).length
       ? { [user]: [] }
       : { ...prevObject };
@@ -85,6 +85,8 @@ async function getUserScores(
           userScores.push({ title, score, completed });
         } else if (completed) userScores.push({ title, score: 0, completed });
       }
+      const sleep_val = 20 + Math.random() * 30;
+      await sleep(sleep_val + sleep_val * (after / 300));
       return getUserScores(user, cacheObj, userObject, after + 300, type);
     }
 
@@ -185,9 +187,9 @@ async function aggregateData(
 ) {
   try {
     const aggregationObject = {};
-    for (const user of userList) {
-      const rand_sleep = Math.random() * RAND_SLEEP_MAX;
-      sleep(rand_sleep);
+    for (let i = 0; i < userList.length; i++) {
+      const user = userList[i];
+      sleep(i * 175 + Math.random() * 50);
       const userObject = await getUserScores(user, cacheObj, {}, 0, type);
       if (!userObject) continue;
       aggregateUser(userObject, aggregationObject);
@@ -330,14 +332,15 @@ function getVariationData(cacheObj, pseudocountedArr) {
 }
 
 const userList = uniqueArrayFromTxt("JusticeUserList.txt");
-console.log(userList);
-// // aggregateData(
-// //   userList,
-// //   "JusticeScores.txt",
-// //   getCacheObjFromFile("JusticeCache.json"),
-// //   "JusticeCache.json",
-// //   "anime"
-// // );
+// console.log(userList);
+// aggregateData(
+//   userList,
+//   "JusticeScores.txt",
+//   getCacheObjFromFile("JusticeCache.json"),
+//   "JusticeCache.json",
+//   "anime"
+// );
+
 aggregateData(
   userList,
   "JusticeManga.txt",
@@ -361,3 +364,61 @@ function sleep(ms) {
     setTimeout(resolve, ms);
   });
 }
+
+function find_user_comparison(cacheObj, title1, title2) {
+  const cacheArr = Object.entries(cacheObj);
+  let title1Arr = [];
+  let title2Arr = [];
+  for (entry of cacheArr) {
+    const arr = entry[1]; //array of objects with a title key
+    const userName = entry[0];
+    for (const work of arr) {
+      if (work.title === title1) {
+        title1Arr.push(userName);
+      }
+      if (work.title === title2) {
+        title2Arr.push(userName);
+      }
+    }
+  }
+  let difference = title1Arr.filter((x) => !title2Arr.includes(x));
+  console.log(`Users for ${title1}:`);
+  console.log(title1Arr);
+  console.log(`Users for ${title2}:`);
+  console.log(title2Arr);
+}
+// find_user_comparison(getCacheObjFromFile("JusticeCache.json"), "Neon Genesis Evangelion", "Neon Genesis Evangelion: The End of Evangelion");
+
+async function getUserDeviation(user) {
+  //userObject: {[user]: [{ title, score, completed }]}
+  const userObject = await getUserScores(user);
+  const userArray = userObject[user];
+  const scoreArray = userArray
+    .map((scoreObject) => {
+      return scoreObject.score;
+    })
+    .filter((score) => score > 0);
+  const standardDeviation = getStandardDeviationArray(scoreArray);
+  console.log(
+    `The user ${user} has standard deviation of ${standardDeviation}`
+  );
+}
+async function getUserDeviations(userArray) {
+  for (const user of userArray) {
+    await getUserDeviation(user);
+  }
+}
+function getStandardDeviationArray(scoreArray) {
+  const sumValue = scoreArray.reduce((total, current) => total + current);
+  const mean = sumValue / scoreArray.length;
+
+  let squareSumDiff = 0;
+  for (const score of scoreArray) {
+    squareSumDiff += Math.pow(mean - score, 2);
+  }
+  const standardDeviation = Math.sqrt(squareSumDiff / scoreArray.length);
+  return standardDeviation;
+}
+// getUserDeviations(["MightyMole", "MizunoWaveRider"]);
+// getUserDeviation("zenmodeman");
+// console.log(getStandardDeviationArray([7.33, 8, 7.33, 7.67, 7, 6.67]));

@@ -11,11 +11,17 @@ test.txt
 # Project Ignores                       #
 #---------------------------------------#
 
+*.zip
+*anime.json
+*manga.json
+*results.txt
+
 # output
 /.temp
 /.tmp
 /build
 /dist
+
 
 # dependencies
 /node_modules
@@ -131,3 +137,5 @@ testCache.json
 testCache.json
 scrapFunc.js
 json_funcs.js
+test.py
+my_results.txt
