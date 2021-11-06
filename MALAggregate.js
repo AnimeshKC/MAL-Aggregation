@@ -85,8 +85,8 @@ async function getUserScores(
           userScores.push({ title, score, completed });
         } else if (completed) userScores.push({ title, score: 0, completed });
       }
-      const sleep_val = 20 + Math.random() * 30;
-      await sleep(sleep_val + sleep_val * (after / 300));
+      const sleep_val = 100 + Math.random() * 7200;
+      await sleep(sleep_val + 6000 * Math.random() * (after / 300));
       return getUserScores(user, cacheObj, userObject, after + 300, type);
     }
 
@@ -189,7 +189,7 @@ async function aggregateData(
     const aggregationObject = {};
     for (let i = 0; i < userList.length; i++) {
       const user = userList[i];
-      sleep(i * 175 + Math.random() * 50);
+      sleep(i * 200 * Math.random() + Math.random() * 750);
       const userObject = await getUserScores(user, cacheObj, {}, 0, type);
       if (!userObject) continue;
       aggregateUser(userObject, aggregationObject);
@@ -331,7 +331,7 @@ function getVariationData(cacheObj, pseudocountedArr) {
   return sortedVariationData;
 }
 
-const userList = uniqueArrayFromTxt("JusticeUserList.txt");
+// const userList = uniqueArrayFromTxt("JusticeUserList.txt");
 // console.log(userList);
 // aggregateData(
 //   userList,
@@ -340,14 +340,24 @@ const userList = uniqueArrayFromTxt("JusticeUserList.txt");
 //   "JusticeCache.json",
 //   "anime"
 // );
+const comfyUserList = uniqueArrayFromTxt("ComfyCampUsers.txt");
+comfyUserList.sort((a, b) => 0.5 - Math.random());
+//const trimmedComfyUserList = shuffledComfyUserList.splice(300);
 
 aggregateData(
-  userList,
-  "JusticeManga.txt",
-  getCacheObjFromFile("JusticeManga.json"),
-  "JusticeManga.json",
-  "manga"
+  comfyUserList,
+  "ComfyCampScores.txt",
+  null,
+  "ComfyCampCache.json",
+  "anime"
 );
+// aggregateData(
+//   userList,
+//   "JusticeManga.txt",
+//   getCacheObjFromFile("JusticeManga.json"),
+//   "JusticeManga.json",
+//   "manga"
+// );
 
 /*
 const userList = uniqueArrayFromTxt("mcmServerUsers.txt", "\r\n")
@@ -365,6 +375,23 @@ function sleep(ms) {
   });
 }
 
+function printUserScoresForTitle(cacheObj, title) {
+  const cacheArr = Object.entries(cacheObj);
+  console.log(`Scores for ${title}: `);
+  for (entry of cacheArr) {
+    const arr = entry[1];
+    const username = entry[0];
+    for (const work of arr) {
+      if (work.title === title && work.score != 0) {
+        console.log(`${username}: ${work.score}`);
+      }
+    }
+  }
+}
+// printUserScoresForTitle(
+//   getCacheObjFromFile("JusticeCache.json"),
+//   "Mahou Shoujo Madoka★Magica"
+// );
 function find_user_comparison(cacheObj, title1, title2) {
   const cacheArr = Object.entries(cacheObj);
   let title1Arr = [];

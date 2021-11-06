@@ -5,8 +5,12 @@
   "main": "MALAggregate.js",
   "dependencies": {
     "async": "^3.2.1",
-    "axios": "0.21.1",
-    "mal-scraper": "^2.11.3"
+    "axios": "^0.24.0",
+    "es6-promise": "^4.2.8",
+    "isomorphic-fetch": "^3.0.0",
+    "jsdom": "^18.0.0",
+    "mal-scraper": "^2.11.3",
+    "xlsx": "^0.17.3"
   },
   "devDependencies": {},
   "scripts": {

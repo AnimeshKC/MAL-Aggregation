@@ -1,9 +1,14 @@
 const malScraper = require("mal-scraper");
 const async = require("async");
 const fs = require("fs");
+const path = require("path");
 const { cachedDataVersionTag } = require("v8");
 
+const MIN_PROGRESS = 0.33;
 const user_arr = [];
+
+const pseudocount_FREQUENCY = 2;
+const pseudocount_VALUE = 5.5;
 
 //function that just generates the metadata object of a user.
 function generateMetadata(name, type = "ANIME", platform = "MAL") {
@@ -98,11 +103,11 @@ async function getUserObject(
           progress,
           score,
           status: statusString,
-          //   title,
+          title,
         };
       }
-      const sleep_val = 20 + Math.random() * 30;
-      await sleep(sleep_val + sleep_val * (after / 300));
+      const sleep_val = 25 + Math.random() * 912;
+      await sleep(sleep_val + Math.random() * 725 * (after / 300));
       return getUserObject(username, type, userObject, after + 300);
     }
     console.count("Waiting");
@@ -123,7 +128,7 @@ async function getUserObject(
   }
 }
 
-async function pushObjToArr(obj, arr) {
+function pushObjToArr(obj, arr) {
   arr.push(obj);
 }
 function sleep(ms) {
@@ -132,26 +137,51 @@ function sleep(ms) {
   });
 }
 async function recordUsers(userList, type = "anime", folder = "UsersFolder") {
-  const usersArray = [];
-  for (let i = 0; i < userList.length; i++) {
-    const username = userList[i];
-    sleep(i * 150 + Math.random() * 30);
-    const currUserObj = await getUserObject(username, type);
-    if (currUserObj) {
-      await writeUser(currUserObj, type, folder);
+  try {
+    const usersArray = [];
+    for (let i = 0; i < userList.length; i++) {
+      const username = userList[i];
+      sleep(i * 12 + i * Math.random() * 121);
+      const currUserObj = await getUserObject(username, type);
+      if (currUserObj) {
+        await writeUser(currUserObj, type, folder);
+      }
     }
-  }
-  console.log("done");
+    console.log("done");
+  } catch (e) {}
+}
+function getUserListFromFileName(fileName, sliceBegin = 0, sliceEnd = 10000) {
+  const userList = uniqueArrayFromTxt(fileName);
+  const slicedUserList = userList.slice(sliceBegin, sliceEnd);
+  return slicedUserList;
+}
+async function execute(userList, type = "anime", folderName = "UsersFolder") {
+  try {
+    await recordUsers(userList, type, folderName);
+    console.log("Complete");
+  } catch (e) {}
 }
 
-const folderName = "Justice";
-async function execute(filename, type = "anime") {
-  const userList = uniqueArrayFromTxt(filename);
-  await recordUsers(userList, type);
+async function executeBoth(userList, folderName = "UsersFolder") {
+  try {
+    await Promise.all([
+      execute(userList, "anime", folderName),
+      execute(userList, "manga", folderName),
+    ]);
+    console.log("Both have been executed.");
+  } catch (e) {}
 }
-
-//execute("JusticeUserList.txt", "anime");
-//execute("JusticeUserList.txt", "manga");
+async function runComfyCamp() {
+  const comfyCamp50 = getUserListFromFileName("ComfyCampUsers.txt", 450, 520);
+  console.log(comfyCamp50);
+  const folderName = "ComfyCampOnly";
+  await executeBoth(comfyCamp50, folderName);
+  recordScores("ComfyCampOnly", "ComfyCampOnly.json", "anime");
+  recordScores("ComfyCampOnly", "ComfyCampOnly_Manga.json", "manga");
+}
+const folderName = "UsersFolder";
+const JusticeUserList = getUserListFromFileName("JusticeUserList.txt");
+executeBoth(JusticeUserList, folderName);
 
 async function writeUser(userObj, type = "anime", folder = "UsersFolder") {
   try {
@@ -165,9 +195,9 @@ async function writeUser(userObj, type = "anime", folder = "UsersFolder") {
     console.log(`Finished for ${username}`);
   } catch (e) {
     console.log(e.message);
-    console.log(
-      `The userObj in this case has metadata: ${userObj["metadata"]}`
-    );
+    // console.log(
+    //   `The userObj in this case has metadata: ${userObj["metadata"]}`
+    // );
   }
 }
 async function singleTest(username) {
@@ -176,4 +206,60 @@ async function singleTest(username) {
   await writeUser(animeObj, "anime");
   await writeUser(mangaObj, "manga");
 }
-singleTest("VitorVerde");
+
+function getNewMean(oldMean, oldCount, newValue) {
+  const newMean = (oldMean * oldCount + newValue) / (oldCount + 1);
+  return newMean;
+}
+function recordScores(dirName, writeFileName = "Users.json", type = "anime") {
+  const scoreObject = {};
+  const directoryPath = path.join(__dirname, dirName);
+  const fileNames = fs.readdirSync(directoryPath);
+  const endString = `${type}.json`;
+  fileNames.forEach((fileName) => {
+    //in this case, we're working with the proper format
+    if (fileName.includes(endString)) {
+      const filePath = path.join(directoryPath, fileName);
+      const currObj = JSON.parse(fs.readFileSync(filePath));
+      for (const key of Object.keys(currObj)) {
+        if (scoreObject.hasOwnProperty(key)) {
+          const progress = currObj[key]["progress"];
+          const score = currObj[key]["score"];
+          const completionAddition = progress === 1 ? 1 : 0;
+          if (progress >= MIN_PROGRESS && score > 0) {
+            scoreObject[key].mean = getNewMean(
+              scoreObject[key].mean,
+              scoreObject[key].numScored,
+              currObj[key]["score"]
+            );
+            scoreObject[key].numScored += 1;
+            scoreObject[key].numCompleted += completionAddition;
+            const pMean =
+              (scoreObject[key].mean * scoreObject[key].numScored +
+                pseudocount_VALUE * pseudocount_FREQUENCY) /
+              (scoreObject[key].numScored + pseudocount_FREQUENCY);
+            scoreObject[key].pMean = pMean;
+          }
+        } else {
+          const progress = currObj[key]["progress"];
+          const score = currObj[key]["score"];
+          if (progress >= MIN_PROGRESS && score > 0) {
+            const numCompleted = progress === 1 ? 1 : 0;
+            scoreObject[key] = {
+              title: currObj[key]["title"],
+              mean: currObj[key]["score"],
+              numScored: 1,
+              numCompleted,
+              pMean: 0,
+            };
+          }
+        }
+      }
+    }
+  });
+  console.log("Starting to write to json file");
+  fs.writeFileSync(writeFileName, JSON.stringify(scoreObject), { flag: "w" });
+  console.log("Finished writing to file");
+}
+
+// singleTest("VitorVerde");
