@@ -15,6 +15,9 @@ test.txt
 *anime.json
 *manga.json
 *results.txt
+*character.json
+*AL.json
+*MAL.json
 
 # output
 /.temp

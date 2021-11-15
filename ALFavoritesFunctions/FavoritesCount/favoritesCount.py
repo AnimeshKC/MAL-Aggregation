@@ -1,4 +1,5 @@
 import requests
+import json
 
 favorites_query = """
 query($name: String){
@@ -10,6 +11,8 @@ User(name:$name){id, name,
         id
         name {
           full
+          first
+          last
         }
       }
     }
@@ -18,6 +21,8 @@ User(name:$name){id, name,
         id
         name {
           full
+          first
+          last
         }
       }
     }
@@ -26,14 +31,18 @@ User(name:$name){id, name,
         id
         name {
           full
+          first
+          last
         }
       }
     }
-    characters4:characters(page:3){
+    characters4:characters(page:4){
       nodes{
         id
         name {
           full
+          first
+          last
         }
       }
     }
@@ -41,6 +50,7 @@ User(name:$name){id, name,
 			nodes{
         type
 				id
+        idMal
         title{
           romaji
         }
@@ -49,6 +59,7 @@ User(name:$name){id, name,
 		anime2:anime(page:2){
 			nodes{
 				id
+        idMal
         type
         title{
           romaji
@@ -58,6 +69,7 @@ User(name:$name){id, name,
 		anime3:anime(page:3){
 			nodes{
 				id
+        idMal
         type
         title{
           romaji
@@ -67,6 +79,7 @@ User(name:$name){id, name,
 		anime4:anime(page:4){
 			nodes{
 				id
+        idMal
         type
         title{
           romaji
@@ -76,6 +89,7 @@ User(name:$name){id, name,
         manga1:manga(page:1){
 			nodes{
 				id
+        idMal
         type
         title{
           romaji
@@ -85,6 +99,7 @@ User(name:$name){id, name,
 		manga2:manga(page:2){
 			nodes{
 				id
+        idMal
         type
         title{
           romaji
@@ -94,6 +109,7 @@ User(name:$name){id, name,
 		manga3:manga(page:3){
 			nodes{
 				id
+        idMal
         type
         title{
           romaji
@@ -103,6 +119,7 @@ User(name:$name){id, name,
 		manga4:manga(page:4){
 			nodes{
 				id
+        idMal
         type
         title{
           romaji
@@ -137,39 +154,51 @@ def getTopObject(placement):
     }
 
 
+# Gets an id with an anime/manga suffix prioritizing the mal id for generic purposes
+# assumes that the node has key type
+def getFavNodeId(favNode):
+    malId = favNode.get("idMal", None)
+    alId = favNode["id"]
+    type = favNode.get("type", "UNKNOWN_TYPE")
+    leadingChar = type[0]
+    workingId = malId if malId else alId
+    favNodeId = str(workingId) + leadingChar
+    favNode["primaryId"] = favNodeId
+    return favNodeId
+
+
 def addFavNodeToObj(favNode, obj, username, placement=1):
-    favNodeId = favNode["id"]
-    topObj = getTopObject(placement)
-    userSet = set([username])
-    obj[favNodeId] = {**favNode, **topObj, "userSet": userSet}
+    favNodeId = getFavNodeId(favNode)
+    # topObj = getTopObject(placement)
+    userPlacements = {username: placement}
+    obj[favNodeId] = {**favNode, "userPlacements": userPlacements}
 
 
-def updateFavNodeIdForObj(nodeId, obj, username, placement=1):
-    # print(nodeId)
-    topObj = getTopObject(placement)
-    # print(topObj)
+# Top data related code
+# topObj = getTopObject(placement)
 
-    for k, v in topObj.items():
-        # print(k)
-        # print(v)
-        # print(obj)
-        # print(obj)
-        # print(nodeId)
-        obj[nodeId][k] += v
-    obj[nodeId]["userSet"].add(username)
+# for k, v in topObj.items():
+#     obj[nodeId][k] += v
 
 
+def updateFavNodeForObj(favNode, obj, username, placement=1):
+    favNodeId = getFavNodeId(favNode)
+    obj[favNodeId]["userPlacements"][username] = placement
+
+
+# assumes that the node have key "type"
 def processNodeForObj(node, obj, username, placement):
-    id = node["id"]
+    id = getFavNodeId(node)
     if id not in obj:
         addFavNodeToObj(node, obj, username, placement)
     else:
-        updateFavNodeIdForObj(id, obj, username, placement)
+        updateFavNodeForObj(node, obj, username, placement)
 
 
 def getFavoritesCountObjects(userList):
     uniqueUserList = list(set(userList))
-    animangaObj = {}
+    animeObj = {}
+    mangaObj = {}
     characterObj = {}
     for username in uniqueUserList:
         respJson = getAPIResponse(favorites_query, {"name": username})
@@ -184,27 +213,89 @@ def getFavoritesCountObjects(userList):
         userFavorites = respUser["favourites"]
         if not userFavorites:
             continue
-        animangaFull = []
-        animangaFull.extend(userFavorites["anime1"]["nodes"])
-        animangaFull.extend(userFavorites["anime2"]["nodes"])
+        animeFull = []
+        animeFull.extend(userFavorites["anime1"]["nodes"])
+        animeFull.extend(userFavorites["anime2"]["nodes"])
 
-        animangaFull.extend(userFavorites["anime3"]["nodes"])
-        animangaFull.extend(userFavorites["anime4"]["nodes"])
-        animangaFull.extend(userFavorites["manga1"]["nodes"])
-        animangaFull.extend(userFavorites["manga2"]["nodes"])
-        animangaFull.extend(userFavorites["manga3"]["nodes"])
-        animangaFull.extend(userFavorites["manga4"]["nodes"])
+        animeFull.extend(userFavorites["anime3"]["nodes"])
+        animeFull.extend(userFavorites["anime4"]["nodes"])
+        # animeCount = len(animangaFull)
 
-        for i, animangaNode in enumerate(animangaFull):
-            processNodeForObj(animangaNode, animangaObj, username, i + 1)
+        for i, animeNode in enumerate(animeFull):
+            processNodeForObj(animeNode, animeObj, username, i + 1)
+
+        mangaFull = []
+
+        mangaFull.extend(userFavorites["manga1"]["nodes"])
+        mangaFull.extend(userFavorites["manga2"]["nodes"])
+        mangaFull.extend(userFavorites["manga3"]["nodes"])
+        mangaFull.extend(userFavorites["manga4"]["nodes"])
+        for i, mangaNode in enumerate(mangaFull):
+            processNodeForObj(mangaNode, mangaObj, username, i + 1)
+
         charactersFull = []
         charactersFull.extend(userFavorites["characters1"]["nodes"])
         charactersFull.extend(userFavorites["characters2"]["nodes"])
         charactersFull.extend(userFavorites["characters3"]["nodes"])
         charactersFull.extend(userFavorites["characters4"]["nodes"])
         for i, characterNode in enumerate(charactersFull):
+            characterNode["type"] = "Character"
             processNodeForObj(characterNode, characterObj, username, i + 1)
-    return animangaObj, characterObj
+    return animeObj, mangaObj, characterObj
 
 
-print(getFavoritesCountObjects(["zenmodeman", "Mienus", "Mole"]))
+def getSortedArrFromFavObj(favObj):
+    arr = list(favObj.values())
+    arr.sort(key=lambda x: len(x["userPlacements"]), reverse=True)
+    return arr
+
+
+def getSortedData(arr):
+    animeObj, mangaObj, characterObj = getFavoritesCountObjects(arr)
+    animeArr = getSortedArrFromFavObj(animeObj)
+    mangaArr = getSortedArrFromFavObj(mangaObj)
+    characterArr = getSortedArrFromFavObj(characterObj)
+    return animeArr, mangaArr, characterArr
+
+
+def writeSortedData(arr, identifier="ALFavoritesSorted"):
+    animeArr, mangaArr, characterArr = getSortedData(arr)
+    animeFilename = identifier + "_anime.json"
+    mangaFilename = identifier + "_manga.json"
+    characterFilename = identifier + "_character.json"
+    print("Writing to files")
+    with open(animeFilename, "w") as af:
+        json.dump(animeArr, af)
+    with open(mangaFilename, "w") as mf:
+        json.dump(mangaArr, mf)
+    with open(characterFilename, "w") as cf:
+        json.dump(characterArr, cf)
+    print("Finished writing to file")
+
+
+def writeALJson(arr, filename="ALFavorites.json"):
+    animeObj, mangaObj, characterObj = getFavoritesCountObjects(arr)
+    finalObj = {"anime": animeObj, "manga": mangaObj, "characters": characterObj}
+
+    print("Writing final object to file named: ", filename)
+    with open(filename, "w") as f:
+        json.dump(finalObj, f)
+    print("File written")
+
+
+# print(getData(["zenmodeman", "Mienus", "Mole"]))
+
+
+def getArrayfromTextFile(filename):
+    arr = []
+    with open(filename, "r") as f:
+        for line in f.readlines():
+            line = line.strip()
+            arr.append(line)
+    return arr
+
+
+arr = getArrayfromTextFile("ComfyCampALUsernames.txt")
+
+writeSortedData(arr, "ComfyCampALFavoritesSorted")
+# writeALJson(arr, "ComfyCampAL.json")
