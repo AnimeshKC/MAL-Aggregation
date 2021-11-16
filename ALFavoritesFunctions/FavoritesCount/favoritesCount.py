@@ -239,27 +239,28 @@ def getFavoritesCountObjects(userList):
         charactersFull.extend(userFavorites["characters3"]["nodes"])
         charactersFull.extend(userFavorites["characters4"]["nodes"])
         for i, characterNode in enumerate(charactersFull):
-            characterNode["type"] = "Character"
+            characterNode["type"] = "CHARACTER"
             processNodeForObj(characterNode, characterObj, username, i + 1)
     return animeObj, mangaObj, characterObj
 
 
-def getSortedArrFromFavObj(favObj):
-    arr = list(favObj.values())
+def get_sorted_arr_from_fav_obj(fav_obj):
+    arr = list(fav_obj.values())
     arr.sort(key=lambda x: len(x["userPlacements"]), reverse=True)
     return arr
 
 
-def getSortedData(arr):
-    animeObj, mangaObj, characterObj = getFavoritesCountObjects(arr)
-    animeArr = getSortedArrFromFavObj(animeObj)
-    mangaArr = getSortedArrFromFavObj(mangaObj)
-    characterArr = getSortedArrFromFavObj(characterObj)
+def get_sorted_data(fav_obj_tuple):
+    # animeObj, mangaObj, characterObj = getFavoritesCountObjects(arr)
+    animeObj, mangaObj, characterObj = fav_obj_tuple
+    animeArr = get_sorted_arr_from_fav_obj(animeObj)
+    mangaArr = get_sorted_arr_from_fav_obj(mangaObj)
+    characterArr = get_sorted_arr_from_fav_obj(characterObj)
     return animeArr, mangaArr, characterArr
 
 
-def writeSortedData(arr, identifier="ALFavoritesSorted"):
-    animeArr, mangaArr, characterArr = getSortedData(arr)
+def write_sorted_data(fav_obj_tuple, identifier="ALFavoritesSorted"):
+    animeArr, mangaArr, characterArr = get_sorted_data(fav_obj_tuple)
     animeFilename = identifier + "_anime.json"
     mangaFilename = identifier + "_manga.json"
     characterFilename = identifier + "_character.json"
@@ -273,10 +274,9 @@ def writeSortedData(arr, identifier="ALFavoritesSorted"):
     print("Finished writing to file")
 
 
-def writeALJson(arr, filename="ALFavorites.json"):
-    animeObj, mangaObj, characterObj = getFavoritesCountObjects(arr)
+def write_fav_json(fav_obj_tuple, filename="ALFavorites.json"):
+    animeObj, mangaObj, characterObj = fav_obj_tuple
     finalObj = {"anime": animeObj, "manga": mangaObj, "characters": characterObj}
-
     print("Writing final object to file named: ", filename)
     with open(filename, "w") as f:
         json.dump(finalObj, f)
@@ -286,7 +286,7 @@ def writeALJson(arr, filename="ALFavorites.json"):
 # print(getData(["zenmodeman", "Mienus", "Mole"]))
 
 
-def getArrayfromTextFile(filename):
+def get_array_from_text_file(filename):
     arr = []
     with open(filename, "r") as f:
         for line in f.readlines():
@@ -295,7 +295,9 @@ def getArrayfromTextFile(filename):
     return arr
 
 
-arr = getArrayfromTextFile("ComfyCampALUsernames.txt")
-
-writeSortedData(arr, "ComfyCampALFavoritesSorted")
-# writeALJson(arr, "ComfyCampAL.json")
+if __name__ == "__main__":
+    arr = get_array_from_text_file("ComfyCampALUsernames.txt")
+    fav_obj_tuple = getFavoritesCountObjects(arr)
+    print(fav_obj_tuple)
+    write_sorted_data(fav_obj_tuple, "ComfyCampALFavoritesSorted")
+    write_fav_json(fav_obj_tuple, "ComfyCampAL.json")
