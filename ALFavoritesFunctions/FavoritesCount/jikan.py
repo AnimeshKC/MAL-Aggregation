@@ -4,7 +4,11 @@ from urllib.request import urlopen
 from urllib.error import HTTPError
 import requests
 
-from favoritesCount import write_sorted_data, get_array_from_text_file, write_fav_json
+from favoritesCount import (
+    write_sorted_data,
+    get_array_from_text_file,
+    write_fav_tuple_to_file,
+)
 
 
 def getFavoritesUrl(username):
@@ -103,7 +107,7 @@ def getFavoritesCountObjects(userList):
 if __name__ == "__main__":
     # getUserFavorites("zenmodeman")
     arr = get_array_from_text_file("ComfyCampMALUsernames.txt")
-    fav_tuple = getFavoritesCountObjects(arr[0:10])
+    fav_tuple = getFavoritesCountObjects(arr[0:40])
     # print(fav_tuple)
-    # write_fav_json(fav_tuple, "ComfyCampMAL.json")
-    write_sorted_data(fav_tuple, "ComfyCampMALFavoritesSorted")
+    write_fav_tuple_to_file(fav_tuple, "ComfyCampMAL.json")
+    # write_sorted_data(fav_tuple, "ComfyCampMALFavoritesSorted")
