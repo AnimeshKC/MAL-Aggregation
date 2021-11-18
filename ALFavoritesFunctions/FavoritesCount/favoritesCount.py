@@ -273,14 +273,16 @@ def write_sorted_data(fav_obj_tuple, identifier="ALFavoritesSorted"):
         json.dump(characterArr, cf)
     print("Finished writing to file")
 
-
-def write_fav_json(fav_obj_tuple, filename="ALFavorites.json"):
+def write_obj_to_file(obj, filename="writeFile.json"):
+      print("Writing final object to file named: ", filename)
+      with open(filename, "w") as f:
+        json.dump(obj, f)
+      print("File written")  
+def write_fav_tuple_to_file(fav_obj_tuple, filename="ALFavorites.json"):
     animeObj, mangaObj, characterObj = fav_obj_tuple
-    finalObj = {"anime": animeObj, "manga": mangaObj, "characters": characterObj}
-    print("Writing final object to file named: ", filename)
-    with open(filename, "w") as f:
-        json.dump(finalObj, f)
-    print("File written")
+    final_obj = {"anime": animeObj, "manga": mangaObj, "characters": characterObj}
+    write_obj_to_file(final_obj, filename)
+    
 
 
 # print(getData(["zenmodeman", "Mienus", "Mole"]))
@@ -300,4 +302,4 @@ if __name__ == "__main__":
     fav_obj_tuple = getFavoritesCountObjects(arr)
     print(fav_obj_tuple)
     write_sorted_data(fav_obj_tuple, "ComfyCampALFavoritesSorted")
-    write_fav_json(fav_obj_tuple, "ComfyCampAL.json")
+    write_fav_tuple_to_file(fav_obj_tuple, "ComfyCampAL.json")
