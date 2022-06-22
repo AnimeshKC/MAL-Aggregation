@@ -4,7 +4,7 @@
   "description": "A project that aggregates MyAnimeList scores for a given list of users",
   "main": "MALAggregate.js",
   "dependencies": {
-    "async": "^3.2.1",
+    "async": "^3.2.2",
     "axios": "^0.24.0",
     "es6-promise": "^4.2.8",
     "isomorphic-fetch": "^3.0.0",
